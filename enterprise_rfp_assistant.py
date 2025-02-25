@@ -1051,34 +1051,42 @@ def main():
     
     # Sidebar for configuration and PDF upload
     with st.sidebar:
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            st.markdown(f"""
-            <div style="color: {colors['primary']};">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+        # Much improved sidebar header with professional styling
+        st.markdown(f"""
+        <div style="margin: -2rem -1rem 1.5rem -1rem; padding: 1.5rem 1rem; background-color: white; border-bottom: 1px solid {colors['border']};">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                <div style="color: {colors['primary']};">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                        <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 style="margin: 0; padding: 0; color: {colors['primary']}; font-size: 1.75rem; font-weight: 700; line-height: 1.2;">RFP Analyzer</h1>
+                </div>
             </div>
-            """, unsafe_allow_html=True)
-        with col2:
-            st.markdown(f"""
-            <div>
-                <h2 style="margin: 0; color: {colors['primary']}; font-size: 1.5rem;">RFP Analyzer</h2>
-                <span style="background-color: #10B981; color: white; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem;">
+            <div style="padding-left: 44px;">
+                <span style="background-color: #10B981; color: white; padding: 3px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500;">
                     Enterprise
                 </span>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
         
-        # OpenAI API key input
-        st.markdown(f"<p style='font-weight: 500; color: {colors['text']};'>OpenAI API Settings</p>", unsafe_allow_html=True)
+        # OpenAI API key input with better spacing and styling
+        st.markdown(f"""
+        <div style="margin-bottom: 1.5rem;">
+            <p style="font-weight: 600; color: {colors['text']}; font-size: 1rem; margin-bottom: 0.5rem;">
+                OpenAI API Settings
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         api_key = st.text_input("API Key", value=openai_api_key, type="password", 
-                                 help="Your OpenAI API key is required for RFP analysis")
+                                help="Your OpenAI API key is required for RFP analysis")
         if api_key:
             st.session_state.openai_api_key = api_key
         
-        st.markdown("<hr style='margin: 1.5rem 0;'>", unsafe_allow_html=True)
+        st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
         
         # AWS Configuration - now hidden and hardcoded
         aws_region = "us-east-1"
@@ -1087,7 +1095,14 @@ def main():
         lambda_url = "https://jc2qj7smmranhdtbxkazthh3hq0ymkih.lambda-url.us-east-1.on.aws/"
         
         # Sections selection
-        st.markdown(f"<p style='font-weight: 500; color: {colors['text']};'>Analysis Options</p>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="margin-bottom: 1rem;">
+            <p style="font-weight: 600; color: {colors['text']}; font-size: 1rem; margin-bottom: 0.5rem;">
+                Analysis Options
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         section_options = list(SECTIONS.keys())
         selected_sections = st.multiselect(
             "Sections to Extract",
@@ -1096,19 +1111,52 @@ def main():
             help="Select specific sections or 'all' for complete analysis"
         )
         
-        st.markdown("<hr style='margin: 1.5rem 0;'>", unsafe_allow_html=True)
+        st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
         
         # PDF Upload Section
-        st.markdown(f"<p style='font-weight: 500; color: {colors['text']};'>Document Upload</p>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="margin-bottom: 1rem;">
+            <p style="font-weight: 600; color: {colors['text']}; font-size: 1rem; margin-bottom: 0.5rem;">
+                Document Upload
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         uploaded_file = st.file_uploader("Upload RFP Document", type=["pdf"], accept_multiple_files=False, 
                                           key=f"uploader_{st.session_state.upload_id}")
         
         if uploaded_file:
             # Add warning about chat history being cleared
-            st.markdown("""
-            <div class="alert alert-warning">
-                <strong>⚠️ Warning:</strong> Processing a new RFP will clear your current chat history.
+            st.markdown(f"""
+            <div style="background-color: rgba(245, 158, 11, 0.1); border-left: 4px solid {colors['warning']}; 
+                      padding: 0.75rem; margin: 1rem 0; border-radius: 0.25rem;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="color: {colors['warning']}; font-weight: bold;">⚠️</div>
+                    <div style="font-weight: 500;">Processing a new RFP will clear your chat history.</div>
+                </div>
             </div>
+            """, unsafe_allow_html=True)
+            
+            # Add some space before the button
+            st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+            
+            # Custom button styling
+            st.markdown(f"""
+            <style>
+            div[data-testid="stButton"] > button {{
+                background-color: {colors['primary']};
+                color: white;
+                font-weight: 500;
+                border-radius: 0.375rem;
+                padding: 0.5rem 1rem;
+                width: 100%;
+                border: none;
+            }}
+            div[data-testid="stButton"] > button:hover {{
+                background-color: {colors['primary_light']};
+                border: none;
+            }}
+            </style>
             """, unsafe_allow_html=True)
             
             if st.button("Process RFP", key="process_button"):
@@ -1152,33 +1200,23 @@ You can now ask me questions about this RFP, or explore the analysis using the t
                         st.session_state.upload_id = str(uuid.uuid4())[:8]
                         st.rerun()
     
-    # Main content area header with columns for better control
-    header_col1, header_col2, header_col3 = st.columns([1, 10, 2])
-    
-    with header_col1:
-        st.markdown(f"""
-        <div style="color: {colors['primary']}; margin-top: 0.5rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="28" height="28">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+    # Main content area header with improved styling
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; margin: 0 0 1.5rem 0; padding-bottom: 1rem; border-bottom: 1px solid {colors['border']};">
+        <div style="color: {colors['primary']}; margin-right: 12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
         </div>
-        """, unsafe_allow_html=True)
-        
-    with header_col2:
-        st.markdown(f"""
-        <h1 style="margin: 0; font-size: 1.8rem; color: {colors['text']};">Enterprise RFP Analyzer</h1>
-        """, unsafe_allow_html=True)
-        
-    with header_col3:
-        st.markdown(f"""
-        <div style="text-align: right; margin-top: 0.5rem;">
-            <span style="background-color: #10B981; color: white; padding: 4px 10px; 
-                  border-radius: 9999px; font-size: 0.75rem;">
+        <h1 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: {colors['text']};">Enterprise RFP Analyzer</h1>
+        <div style="margin-left: auto;">
+            <span style="background-color: #10B981; color: white; padding: 3px 12px; 
+                  border-radius: 9999px; font-size: 0.8rem; font-weight: 500;">
                 Active
             </span>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
     
     # Show current RFP info if available, otherwise show welcome screen
     if st.session_state.current_rfp:
