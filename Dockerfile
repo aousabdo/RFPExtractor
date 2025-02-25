@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.9-slim
 
 WORKDIR /app
 
@@ -7,21 +7,37 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     software-properties-common \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better layer caching
+# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Add pymongo and python-dotenv for authentication
+RUN pip install --no-cache-dir pymongo python-dotenv
+
+# Copy application code
 COPY . .
 
-# Expose the port Streamlit runs on
+# Create necessary directories
+RUN mkdir -p /tmp
+
+# Expose port for Streamlit
 EXPOSE 8501
 
-# Set up a non-root user for security
-RUN useradd -m appuser
-USER appuser
+# Health check
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
-# Command to run the application (can be overridden)
-CMD ["streamlit", "run", "rfp_chat_assistant.py", "--server.port=8501", "--server.address=0.0.0.0"] 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+streamlit run enterprise_rfp_assistant.py --server.port=8501 --server.address=0.0.0.0\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Run the application
+ENTRYPOINT ["/app/entrypoint.sh"]

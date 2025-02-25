@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  rfp_analyzer:
+    build: .
+    container_name: rfp_analyzer
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=${MONGODB_DB:-rfp_analyzer}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_NAME=${ADMIN_NAME:-System Administrator}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - rfp_network
+
+networks:
+  rfp_network:
+    driver: bridge

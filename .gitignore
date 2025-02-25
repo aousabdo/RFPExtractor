@@ -24,6 +24,8 @@ var/
 
 # Environments and credentials
 .env
+.env.*
+*.env
 .venv
 .aws/
 credentials
@@ -32,7 +34,17 @@ config
 *_key*
 *.key
 *secret*
+*password*
+*token*
+*credential*
 .streamlit/secrets.toml
+secrets/
+*config*.json
+*credentials*.json
+*.cert
+*.crt
+*.p12
+*.pfx
 
 # IDE specific files
 .idea/

@@ -12,18 +12,15 @@ import process_rfp
 import logging
 from datetime import datetime, timedelta
 import random
+# Add ReportLab imports for PDF generation
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
 import getpass
 import socket
 import tempfile
-from dotenv import load_dotenv
-
-# Import authentication modules
-from mongodb_connection import get_mongodb_connection
-from auth import UserAuth
-import auth_ui
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -48,34 +45,6 @@ def load_svg_logo():
     except Exception as e:
         logger.error(f"Error loading logo: {str(e)}")
         return None
-
-# Initialize MongoDB and auth
-@st.cache_resource
-def init_mongodb_auth():
-    """Initialize MongoDB connection and Auth instance"""
-    try:
-        # Connect to MongoDB
-        mongo_client, mongo_db = get_mongodb_connection()
-        
-        # Create UserAuth instance
-        auth_instance = UserAuth(mongo_db)
-        
-        # Create initial admin user if environment variables are set
-        admin_email = os.getenv("ADMIN_EMAIL")
-        admin_password = os.getenv("ADMIN_PASSWORD")
-        admin_name = os.getenv("ADMIN_NAME", "System Administrator")
-        
-        if admin_email and admin_password:
-            auth_instance.create_initial_admin(admin_email, admin_password, admin_name)
-        
-        return mongo_client, mongo_db, auth_instance
-    except Exception as e:
-        logger.error(f"Failed to initialize MongoDB and Auth: {str(e)}")
-        st.error(f"Database connection error: {str(e)}")
-        return None, None, None
-
-# Get auth instance
-mongo_client, mongo_db, auth_instance = init_mongodb_auth()
 
 # Store logo in session state so we don't reload it every time
 if "logo_svg" not in st.session_state:
@@ -791,14 +760,11 @@ def generate_report_filename(rfp_name: str, model_used: str = "gpt-4o") -> str:
     # Get current timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # Get username from session if authenticated
-    if st.session_state.user:
-        username = st.session_state.user['fullname'].replace(" ", "_")
-    else:
-        try:
-            username = getpass.getuser()
-        except:
-            username = "user"
+    # Get username or default to "user"
+    try:
+        username = getpass.getuser()
+    except:
+        username = "user"
     
     # Clean the RFP name to make it filename-safe
     # Remove file extension if present
@@ -1401,8 +1367,7 @@ def display_chat_interface():
     else:
         st.warning("Please enter your OpenAI API key in the sidebar to enable chat functionality.")
 
-def main_content():
-    """Main application content when authenticated"""
+def main():
     # Load custom CSS
     load_css()
     
@@ -1432,36 +1397,6 @@ def main_content():
         </div>
         """, unsafe_allow_html=True)
         
-        # Display user information
-        if st.session_state.user:
-            user_fullname = st.session_state.user.get('fullname', 'User')
-            user_email = st.session_state.user.get('email', '')
-            
-            st.markdown(f"""
-            <div style="background-color: {colors['background']}; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {colors['primary']}; 
-                              display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                        {user_fullname[0].upper()}
-                    </div>
-                    <div>
-                        <div style="font-weight: 600;">{user_fullname}</div>
-                        <div style="font-size: 0.875rem; color: {colors['text_muted']};">{user_email}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if st.sidebar.button("Account Settings", key="account_settings"):
-                st.session_state.page = "profile"
-                st.rerun()
-            
-            if st.sidebar.button("Sign Out", key="sign_out"):
-                auth_ui.logout(auth_instance)
-                st.rerun()
-        
-        st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
-        
         # OpenAI API key input with better spacing and styling
         st.markdown(f"""
         <div style="margin-bottom: 1.5rem;">
@@ -1486,6 +1421,8 @@ def main_content():
         
         # Set default to "all" for sections to extract (no UI shown to user)
         selected_sections = ["all"]
+        
+        # st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
         
         # PDF Upload Section
         st.markdown(f"""
@@ -1592,56 +1529,35 @@ You can now ask me questions about this RFP, or explore the analysis using the t
     </div>
     """, unsafe_allow_html=True)
     
-    # Display user profile if on profile page
-    if st.session_state.page == "profile":
-        auth_ui.user_profile(auth_instance, colors)
+    # Show current RFP info if available, otherwise show welcome screen
+    if st.session_state.current_rfp:
+        # Use columns for document info bar
+        doc_col1, doc_col2 = st.columns([4, 1])
+        with doc_col1:
+            st.markdown(f"**Current Document:** {st.session_state.rfp_name}")
+        with doc_col2:
+            st.markdown("""
+            <div style="text-align: right;">
+                <span style="background-color: #10B981; color: white; padding: 4px 10px; 
+                      border-radius: 9999px; font-size: 0.75rem;">
+                    Active Analysis
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
         
-        # Add button to return to main app
-        if st.button("Back to RFP Analyzer"):
-            st.session_state.page = "main"
-            st.rerun()
+        # Display RFP data
+        display_rfp_data(st.session_state.current_rfp)
+        
+        st.subheader("💬 RFP Chat Assistant")
+        st.write("Ask questions about the RFP and get AI-powered insights to help with your response strategy.")
+                
+        # Chat interface
+        display_chat_interface()
     else:
-        # Show current RFP info if available, otherwise show welcome screen
-        if st.session_state.current_rfp:
-            # Use columns for document info bar
-            doc_col1, doc_col2 = st.columns([4, 1])
-            with doc_col1:
-                st.markdown(f"**Current Document:** {st.session_state.rfp_name}")
-            with doc_col2:
-                st.markdown("""
-                <div style="text-align: right;">
-                    <span style="background-color: #10B981; color: white; padding: 4px 10px; 
-                          border-radius: 9999px; font-size: 0.75rem;">
-                        Active Analysis
-                    </span>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Display RFP data
-            display_rfp_data(st.session_state.current_rfp)
-            
-            st.subheader("💬 RFP Chat Assistant")
-            st.write("Ask questions about the RFP and get AI-powered insights to help with your response strategy.")
-                    
-            # Chat interface
-            display_chat_interface()
-        else:
-            show_no_rfp_screen()
+        show_no_rfp_screen()
 
     # Add some spacing at the bottom
     st.markdown("<div style='margin-bottom: 100px;'></div>", unsafe_allow_html=True)
-
-def main():
-    # Check if MongoDB connection succeeded
-    if mongo_db is None or auth_instance is None:
-        st.error("Failed to connect to the database. Please check your MongoDB configuration.")
-        return
-    
-    # Load custom CSS
-    load_css()
-    
-    # Require authentication for all content
-    auth_ui.require_auth(auth_instance, get_colors(), main_content)
 
 if __name__ == "__main__":
     main()
