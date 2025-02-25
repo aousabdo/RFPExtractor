@@ -28,6 +28,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Load custom logo from file
+def load_svg_logo():
+    try:
+        with open("rfp_analyzer_logo.svg", "r") as logo_file:
+            return logo_file.read()
+    except Exception as e:
+        logger.error(f"Error loading logo: {str(e)}")
+        return None
+
+# Store logo in session state so we don't reload it every time
+if "logo_svg" not in st.session_state:
+    st.session_state.logo_svg = load_svg_logo()
+
 # Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -1055,10 +1068,10 @@ def main():
         st.markdown(f"""
         <div style="margin: -2rem -1rem 1.5rem -1rem; padding: 1.5rem 1rem; background-color: white; border-bottom: 1px solid {colors['border']};">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                <div style="color: {colors['primary']};">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                <div style="color: {colors['primary']}; width: 40px; height: 40px;">
+                    {st.session_state.logo_svg if st.session_state.logo_svg else '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
                         <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                    </svg>
+                    </svg>'''}
                 </div>
                 <div>
                     <h1 style="margin: 0; padding: 0; color: {colors['primary']}; font-size: 1.75rem; font-weight: 700; line-height: 1.2;">RFP Analyzer</h1>
@@ -1094,24 +1107,10 @@ def main():
         s3_key = ""  # Will use the filename if empty
         lambda_url = "https://jc2qj7smmranhdtbxkazthh3hq0ymkih.lambda-url.us-east-1.on.aws/"
         
-        # Sections selection
-        st.markdown(f"""
-        <div style="margin-bottom: 1rem;">
-            <p style="font-weight: 600; color: {colors['text']}; font-size: 1rem; margin-bottom: 0.5rem;">
-                Analysis Options
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Set default to "all" for sections to extract (no UI shown to user)
+        selected_sections = ["all"]
         
-        section_options = list(SECTIONS.keys())
-        selected_sections = st.multiselect(
-            "Sections to Extract",
-            options=section_options,
-            default=["all"],
-            help="Select specific sections or 'all' for complete analysis"
-        )
-        
-        st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
+        # st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
         
         # PDF Upload Section
         st.markdown(f"""
@@ -1204,9 +1203,9 @@ You can now ask me questions about this RFP, or explore the analysis using the t
     st.markdown(f"""
     <div style="display: flex; align-items: center; margin: 0 0 1.5rem 0; padding-bottom: 1rem; border-bottom: 1px solid {colors['border']};">
         <div style="color: {colors['primary']}; margin-right: 12px;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            {st.session_state.logo_svg if st.session_state.logo_svg else '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
                 <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-            </svg>
+            </svg>'''}
         </div>
         <h1 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: {colors['text']};">Enterprise RFP Analyzer</h1>
         <div style="margin-left: auto;">
