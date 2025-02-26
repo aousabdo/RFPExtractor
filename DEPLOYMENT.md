@@ -30,7 +30,7 @@ Use the provided deployment script:
    EC2_HOST="your-ec2-host-ip-or-domain"
    EC2_USER="ec2-user"  # for Amazon Linux or "ubuntu" for Ubuntu
    SSH_KEY="path/to/your-ssh-key.pem"
-   REPOSITORY="https://github.com/yourusername/RFPExtractor.git"
+   REPOSITORY="https://github.com/aousabdo/RFPExtractor.git"
    ```
 
 2. Run the deployment script:
@@ -117,7 +117,7 @@ Use the provided deployment script:
 
 4. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/RFPExtractor.git rfp-analyzer
+   git clone https://github.com/aousabdo/RFPExtractor.git rfp-analyzer
    cd rfp-analyzer
    ```
 
