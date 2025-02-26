@@ -16,6 +16,11 @@ import getpass
 import socket
 import tempfile
 from dotenv import load_dotenv
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
 
 # Import authentication modules
 from mongodb_connection import get_mongodb_connection
@@ -565,13 +570,88 @@ def load_css():
         padding: 0.5rem;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }}
+    
+    /* Improved sidebar hierarchy */
+    .sidebar-section {{
+        margin-bottom: 2rem;
+    }}
+    
+    .sidebar-section-header {{
+        font-weight: 600;
+        font-size: 1rem;
+        color: {colors["text"]};
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid {colors["border"]};
+    }}
+    
+    /* Main app header with logo */
+    .app-header {{
+        display: flex;
+        align-items: center;
+        padding-bottom: 1rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid {colors["border"]};
+        position: relative;
+    }}
+    
+    .app-logo {{
+        width: 40px;
+        height: 40px;
+        margin-right: 1rem;
+        color: {colors["primary"]};
+    }}
+    
+    .app-title {{
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: {colors["text"]};
+        margin: 0;
+    }}
+    
+    .app-badge {{
+        background-color: #10B981;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-left: 1rem;
+    }}
+    
+    /* User account button styling */
+    button[data-testid="user_menu_button"] {{
+        background-color: {colors["primary"]};
+        color: white;
+        font-weight: bold;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        padding: 0px;
+        border: 2px solid white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }}
+    
+    button[data-testid="sign_out_button"] {{
+        background-color: {colors["background"]};
+        color: {colors["text"]};
+        border: 1px solid {colors["border"]};
+        font-size: 0.875rem;
+    }}
+    
+    button[data-testid="sign_out_button"]:hover {{
+        background-color: {colors["danger"]}10;
+        color: {colors["danger"]};
+        border-color: {colors["danger"]}30;
+    }}
     </style>
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# We'll use Streamlit's emoji system instead of SVG icons
-# This function is kept for compatibility but not used in the updated code
-def get_icons():
+def we_need_icons():
     return {}
 
 def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str = "gpt-4o") -> str:
@@ -819,78 +899,64 @@ def generate_report_filename(rfp_name: str, model_used: str = "gpt-4o") -> str:
 
 def display_statistics_cards(rfp_data):
     """Display professional metric cards with clear styling"""
+    # Create title
+    st.markdown("### Key Metrics")
+    
     # Get the metrics
     req_count = len(rfp_data.get('requirements', []))
     task_count = len(rfp_data.get('tasks', []))
     date_count = len(rfp_data.get('dates', []))
     current_time = datetime.now().strftime("%B %d, %Y %H:%M")
     
-    # Create title
-    st.markdown("### Key Metrics")
-    
-    # Create columns for metrics
+    # Create columns for statistics cards
     cols = st.columns(4)
-    
-    # Professional card style with border and shadow
-    card_style = """
-        background-color: white;
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        height: 140px;
-        display: flex;
-        flex-direction: column;
-    """
-    
-    # Card header style
-    header_style = """
-        color: #333;
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 10px;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
-    """
-    
-    # Value style
-    value_style = """
-        font-size: 32px;
-        font-weight: 700;
-        margin: 15px 0;
-    """
     
     with cols[0]:
         st.markdown(f"""
-            <div style="{card_style}">
-                <div style="{header_style}">📄 Requirements</div>
-                <div style="{value_style} color:#3b82f6;">{req_count}</div>
+        <div style="background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 140px;">
+            <div style="color: #333; font-size: 18px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center;">
+                <span style="margin-right: 8px;">📄</span> Requirements
             </div>
+            <div style="font-size: 36px; font-weight: 700; color: #3b82f6; margin: 15px 0;">
+                {req_count}
+            </div>
+        </div>
         """, unsafe_allow_html=True)
-        
+    
     with cols[1]:
         st.markdown(f"""
-            <div style="{card_style}">
-                <div style="{header_style}">✅ Tasks</div>
-                <div style="{value_style} color:#10b981;">{task_count}</div>
+        <div style="background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 140px;">
+            <div style="color: #333; font-size: 18px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center;">
+                <span style="margin-right: 8px;">✅</span> Tasks
             </div>
+            <div style="font-size: 36px; font-weight: 700; color: #10b981; margin: 15px 0;">
+                {task_count}
+            </div>
+        </div>
         """, unsafe_allow_html=True)
-        
+    
     with cols[2]:
         st.markdown(f"""
-            <div style="{card_style}">
-                <div style="{header_style}">📅 Key Dates</div>
-                <div style="{value_style} color:#f43f5e;">{date_count}</div>
+        <div style="background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 140px;">
+            <div style="color: #333; font-size: 18px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center;">
+                <span style="margin-right: 8px;">📅</span> Key Dates
             </div>
+            <div style="font-size: 36px; font-weight: 700; color: #f43f5e; margin: 15px 0;">
+                {date_count}
+            </div>
+        </div>
         """, unsafe_allow_html=True)
-        
+    
     with cols[3]:
         st.markdown(f"""
-            <div style="{card_style}">
-                <div style="{header_style}">🕒 Last Updated</div>
-                <div style="font-size: 18px; font-weight: 500; color:#8b5cf6; margin-top: 15px; display: flex; flex-direction: column; justify-content: center;">
-                    {current_time}
-                </div>
+        <div style="background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 140px;">
+            <div style="color: #333; font-size: 18px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center;">
+                <span style="margin-right: 8px;">🕒</span> Last Updated
             </div>
+            <div style="font-size: 16px; font-weight: 500; color: #8b5cf6; margin-top: 15px;">
+                {current_time}
+            </div>
+        </div>
         """, unsafe_allow_html=True)
     
     # Add extra space after metrics
@@ -1401,73 +1467,50 @@ def display_chat_interface():
     else:
         st.warning("Please enter your OpenAI API key in the sidebar to enable chat functionality.")
 
+def render_app_header():
+    """Render the application header with logo"""
+    colors = get_colors()
+    
+    # Create header container
+    header_container = st.container()
+    
+    with header_container:
+        # Use columns for header
+        header_col1, header_col2 = st.columns([9, 1])
+        
+        with header_col1:
+            # Main app title with logo
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+                <div style="color: {colors['primary']}; margin-right: 12px;">
+                    {st.session_state.logo_svg if st.session_state.logo_svg else '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="40" height="40">
+                        <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>'''}
+                </div>
+                <h1 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: {colors['text']};">Enterprise RFP Analyzer</h1>
+                <span style="background-color: #10B981; color: white; padding: 3px 12px; 
+                      border-radius: 9999px; font-size: 0.8rem; font-weight: 500; margin-left: 1rem;">
+                    Active
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
 def main_content():
     """Main application content when authenticated"""
     # Load custom CSS
     load_css()
-    
-    icons = get_icons()
     colors = get_colors()
+    
+    # Render the app header
+    render_app_header()
     
     # Sidebar for configuration and PDF upload
     with st.sidebar:
-        # Much improved sidebar header with professional styling
+        # Improved sidebar organization with section headers        
+        # OpenAI API Settings Section
         st.markdown(f"""
-        <div style="margin: -2rem -1rem 1.5rem -1rem; padding: 1.5rem 1rem; background-color: white; border-bottom: 1px solid {colors['border']};">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                <div style="color: {colors['primary']}; width: 40px; height: 40px;">
-                    {st.session_state.logo_svg if st.session_state.logo_svg else '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
-                        <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                    </svg>'''}
-                </div>
-                <div>
-                    <h1 style="margin: 0; padding: 0; color: {colors['primary']}; font-size: 1.75rem; font-weight: 700; line-height: 1.2;">RFP Analyzer</h1>
-                </div>
-            </div>
-            <div style="padding-left: 44px;">
-                <span style="background-color: #10B981; color: white; padding: 3px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500;">
-                    Enterprise
-                </span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Display user information
-        if st.session_state.user:
-            user_fullname = st.session_state.user.get('fullname', 'User')
-            user_email = st.session_state.user.get('email', '')
-            
-            st.markdown(f"""
-            <div style="background-color: {colors['background']}; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {colors['primary']}; 
-                              display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                        {user_fullname[0].upper()}
-                    </div>
-                    <div>
-                        <div style="font-weight: 600;">{user_fullname}</div>
-                        <div style="font-size: 0.875rem; color: {colors['text_muted']};">{user_email}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if st.sidebar.button("Account Settings", key="account_settings"):
-                st.session_state.page = "profile"
-                st.rerun()
-            
-            if st.sidebar.button("Sign Out", key="sign_out"):
-                auth_ui.logout(auth_instance)
-                st.rerun()
-        
-        st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
-        
-        # OpenAI API key input with better spacing and styling
-        st.markdown(f"""
-        <div style="margin-bottom: 1.5rem;">
-            <p style="font-weight: 600; color: {colors['text']}; font-size: 1rem; margin-bottom: 0.5rem;">
-                OpenAI API Settings
-            </p>
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">OpenAI API Settings</div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1476,7 +1519,14 @@ def main_content():
         if api_key:
             st.session_state.openai_api_key = api_key
         
-        st.markdown(f"""<hr style="margin: 1.5rem 0; border-color: {colors['border']};">""", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+        
+        # Document Upload Section
+        st.markdown(f"""
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">Document Upload</div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # AWS Configuration - now hidden and hardcoded
         aws_region = "us-east-1"
@@ -1487,17 +1537,8 @@ def main_content():
         # Set default to "all" for sections to extract (no UI shown to user)
         selected_sections = ["all"]
         
-        # PDF Upload Section
-        st.markdown(f"""
-        <div style="margin-bottom: 1rem;">
-            <p style="font-weight: 600; color: {colors['text']}; font-size: 1rem; margin-bottom: 0.5rem;">
-                Document Upload
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
         uploaded_file = st.file_uploader("Upload RFP Document", type=["pdf"], accept_multiple_files=False, 
-                                          key=f"uploader_{st.session_state.upload_id}")
+                                         key=f"uploader_{st.session_state.upload_id}")
         
         if uploaded_file:
             # Add warning about chat history being cleared
@@ -1574,59 +1615,32 @@ You can now ask me questions about this RFP, or explore the analysis using the t
                         st.session_state.upload_id = str(uuid.uuid4())[:8]
                         st.rerun()
     
-    # Main content area header with improved styling
-    st.markdown(f"""
-    <div style="display: flex; align-items: center; margin: 0 0 1.5rem 0; padding-bottom: 1rem; border-bottom: 1px solid {colors['border']};">
-        <div style="color: {colors['primary']}; margin-right: 12px;">
-            {st.session_state.logo_svg if st.session_state.logo_svg else '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
-                <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-            </svg>'''}
-        </div>
-        <h1 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: {colors['text']};">Enterprise RFP Analyzer</h1>
-        <div style="margin-left: auto;">
-            <span style="background-color: #10B981; color: white; padding: 3px 12px; 
-                  border-radius: 9999px; font-size: 0.8rem; font-weight: 500;">
-                Active
-            </span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Display user profile if on profile page
-    if st.session_state.page == "profile":
-        auth_ui.user_profile(auth_instance, colors)
+    # Show current RFP info if available, otherwise show welcome screen
+    if st.session_state.current_rfp:
+        # Use columns for document info bar
+        doc_col1, doc_col2 = st.columns([4, 1])
+        with doc_col1:
+            st.markdown(f"**Current Document:** {st.session_state.rfp_name}")
+        with doc_col2:
+            st.markdown("""
+            <div style="text-align: right;">
+                <span style="background-color: #10B981; color: white; padding: 4px 10px; 
+                      border-radius: 9999px; font-size: 0.75rem;">
+                    Active Analysis
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
         
-        # Add button to return to main app
-        if st.button("Back to RFP Analyzer"):
-            st.session_state.page = "main"
-            st.rerun()
+        # Display RFP data
+        display_rfp_data(st.session_state.current_rfp)
+        
+        st.subheader("💬 RFP Chat Assistant")
+        st.write("Ask questions about the RFP and get AI-powered insights to help with your response strategy.")
+                
+        # Chat interface
+        display_chat_interface()
     else:
-        # Show current RFP info if available, otherwise show welcome screen
-        if st.session_state.current_rfp:
-            # Use columns for document info bar
-            doc_col1, doc_col2 = st.columns([4, 1])
-            with doc_col1:
-                st.markdown(f"**Current Document:** {st.session_state.rfp_name}")
-            with doc_col2:
-                st.markdown("""
-                <div style="text-align: right;">
-                    <span style="background-color: #10B981; color: white; padding: 4px 10px; 
-                          border-radius: 9999px; font-size: 0.75rem;">
-                        Active Analysis
-                    </span>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Display RFP data
-            display_rfp_data(st.session_state.current_rfp)
-            
-            st.subheader("💬 RFP Chat Assistant")
-            st.write("Ask questions about the RFP and get AI-powered insights to help with your response strategy.")
-                    
-            # Chat interface
-            display_chat_interface()
-        else:
-            show_no_rfp_screen()
+        show_no_rfp_screen()
 
     # Add some spacing at the bottom
     st.markdown("<div style='margin-bottom: 100px;'></div>", unsafe_allow_html=True)

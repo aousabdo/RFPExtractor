@@ -5,12 +5,13 @@ This guide provides detailed instructions for deploying the RFP Analyzer applica
 ## Prerequisites
 
 1. An Amazon EC2 instance with:
-   - Ubuntu Server 20.04 LTS or later
+   - Amazon Linux 2023 or Ubuntu Server 20.04 LTS or later
    - Minimum t2.medium instance type (recommended for processing PDFs)
    - At least 20GB of disk space
    - A security group that allows inbound traffic on ports 22 (SSH), 80 (HTTP), and 443 (HTTPS)
 
-2. A domain name pointing to your EC2 instance's public IP address
+2. Optional: A domain name pointing to your EC2 instance's public IP address
+   - You can use your EC2's public DNS (e.g., ec2-xx-xx-xx-xx.compute-1.amazonaws.com) instead
 
 3. A MongoDB database:
    - You can use MongoDB Atlas (cloud-hosted)
@@ -27,7 +28,7 @@ Use the provided deployment script:
 1. Edit the configuration variables in `deploy_to_ec2.sh`:
    ```bash
    EC2_HOST="your-ec2-host-ip-or-domain"
-   EC2_USER="ubuntu"  # or ec2-user for Amazon Linux
+   EC2_USER="ec2-user"  # for Amazon Linux or "ubuntu" for Ubuntu
    SSH_KEY="path/to/your-ssh-key.pem"
    REPOSITORY="https://github.com/yourusername/RFPExtractor.git"
    ```
@@ -40,17 +41,25 @@ Use the provided deployment script:
 
 3. SSH into your EC2 instance to configure the environment variables:
    ```bash
-   ssh -i your-ssh-key.pem ubuntu@your-ec2-host
+   ssh -i your-ssh-key.pem ec2-user@your-ec2-host
    cd rfp-analyzer
    nano .env
    ```
 
-4. Set up SSL certificates with Let's Encrypt:
+4. Optional - If you have a domain name and want to set up SSL:
    ```bash
+   # For Ubuntu
+   sudo apt install certbot python3-certbot-nginx
+   sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+   
+   # For Amazon Linux 2023
+   sudo dnf install certbot python3-certbot-nginx
    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
    ```
 
 ### Option 2: Manual Deployment
+
+#### For Ubuntu:
 
 1. SSH into your EC2 instance:
    ```bash
@@ -75,6 +84,37 @@ Use the provided deployment script:
    sudo apt install nginx
    ```
 
+#### For Amazon Linux 2023:
+
+1. SSH into your EC2 instance:
+   ```bash
+   ssh -i your-ssh-key.pem ec2-user@your-ec2-host
+   ```
+
+2. Install Docker and Docker Compose:
+   ```bash
+   sudo dnf update -y
+   sudo dnf install -y docker
+   sudo systemctl enable docker
+   sudo systemctl start docker
+   sudo usermod -aG docker ${USER}
+   
+   # Get the latest compose version
+   COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)
+   sudo curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+   sudo chmod +x /usr/local/bin/docker-compose
+   sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+   ```
+
+3. Install Nginx:
+   ```bash
+   sudo dnf install -y nginx
+   sudo systemctl enable nginx
+   sudo systemctl start nginx
+   ```
+
+#### For both systems:
+
 4. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/RFPExtractor.git rfp-analyzer
@@ -93,6 +133,8 @@ Use the provided deployment script:
    ```
 
 7. Configure Nginx:
+   
+   **For Ubuntu:**
    ```bash
    sudo cp nginx.conf /etc/nginx/sites-available/rfp_analyzer
    sudo ln -s /etc/nginx/sites-available/rfp_analyzer /etc/nginx/sites-enabled/
@@ -100,10 +142,27 @@ Use the provided deployment script:
    sudo nginx -t
    sudo systemctl reload nginx
    ```
+   
+   **For Amazon Linux 2023:**
+   ```bash
+   sudo cp nginx.conf /etc/nginx/conf.d/rfp_analyzer.conf
+   # Edit the config file to use your EC2 hostname
+   sudo sed -i "s/ec2-23-20-221-108.compute-1.amazonaws.com/$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)/g" /etc/nginx/conf.d/rfp_analyzer.conf
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
 
-8. Set up SSL with Let's Encrypt:
+8. Optional - If you have a domain, set up SSL:
+   
+   **For Ubuntu:**
    ```bash
    sudo apt install certbot python3-certbot-nginx
+   sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+   ```
+   
+   **For Amazon Linux 2023:**
+   ```bash
+   sudo dnf install certbot python3-certbot-nginx
    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
    ```
 
@@ -134,17 +193,24 @@ AWS_DEFAULT_REGION=us-east-1
 
 ### Nginx Configuration
 
-Edit the Nginx configuration file to match your domain:
+The default Nginx configuration is set up to work with your EC2's public DNS. If you want to use a domain name instead, edit the configuration file:
 
+**For Ubuntu:**
 ```bash
 sudo nano /etc/nginx/sites-available/rfp_analyzer
 ```
 
-Replace `your-domain.com` with your actual domain name in the server_name directives.
+**For Amazon Linux 2023:**
+```bash
+sudo nano /etc/nginx/conf.d/rfp_analyzer.conf
+```
+
+Replace the `server_name` with your domain name or EC2 public DNS.
 
 ## Initial Setup
 
-1. After deployment, access the application at your domain (https://yourdomain.com)
+1. After deployment, access the application at your EC2 public DNS or domain name:
+   - http://ec2-xx-xx-xx-xx.compute-1.amazonaws.com (or your domain)
 
 2. Log in with the admin credentials specified in your `.env` file
 
@@ -209,11 +275,40 @@ sudo tail -f /var/log/nginx/error.log
 1. **Application not accessible**: Check Nginx configuration and Docker container status.
 2. **Authentication failures**: Verify MongoDB connection string and credentials.
 3. **RFP processing errors**: Check OpenAI API key and AWS credentials if using Lambda/S3.
+4. **Nginx configuration differences**: Amazon Linux 2023 uses different paths than Ubuntu for Nginx configuration.
 
 ## Security Considerations
 
 1. **API Keys**: Never commit API keys to the repository. Always use environment variables.
 2. **Database Security**: Use strong passwords and restrict network access to your MongoDB instance.
-3. **HTTPS**: Always use HTTPS in production with valid SSL certificates.
+3. **HTTPS**: Consider using HTTPS in production with valid SSL certificates (requires a domain name) or self-signed certificates.
 4. **Regular Updates**: Keep the system, Docker, and application dependencies updated with security patches.
 5. **Firewall**: Configure EC2 security groups to allow only necessary traffic.
+
+## Using Without a Domain Name
+
+You can use this application with just your EC2 instance's public DNS:
+
+1. The deployment script automatically configures Nginx to use your EC2's public DNS 
+2. Access your application at http://ec2-xx-xx-xx-xx.compute-1.amazonaws.com
+3. For HTTPS without a domain, you'll need to:
+   - Generate self-signed certificates
+   - Update the nginx configuration to use these certificates
+   - Note that browsers will show security warnings with self-signed certificates
+
+To generate self-signed certificates:
+
+```bash
+# Create certificate directory
+sudo mkdir -p /etc/nginx/ssl
+
+# Generate self-signed certificate
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt
+
+# Edit nginx config to uncomment the SSL section and use these certificates
+sudo nano /etc/nginx/conf.d/rfp_analyzer.conf
+
+# Test and reload
+sudo nginx -t
+sudo systemctl reload nginx
+```
