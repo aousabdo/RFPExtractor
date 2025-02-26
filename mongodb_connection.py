@@ -4,11 +4,11 @@ import logging
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
-# Configure logging
-logger = logging.getLogger(__name__)
-
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 def get_mongodb_connection():
     """
