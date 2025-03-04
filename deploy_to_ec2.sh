@@ -61,19 +61,54 @@ ssh -i "$SSH_KEY" "$EC2_USER@$EC2_HOST" << ENDSSH
     mkdir -p ${DEPLOY_DIR}
 ENDSSH
 
-# Clone or update the repository on the local machine
-echo -e "${GREEN}Cloning/updating repository...${NC}"
-if [ ! -d "temp_clone" ]; then
-    git clone "$REPOSITORY" temp_clone
+# Clean up any existing temp directory
+echo -e "${GREEN}Cleaning up any existing temp directory...${NC}"
+rm -rf temp_clone
+
+# Clone the repository directly (not as a submodule)
+echo -e "${GREEN}Cloning repository...${NC}"
+git clone "$REPOSITORY" temp_clone
+
+# Check if .env.template exists
+echo -e "${GREEN}Checking for .env.template...${NC}"
+if [ -f ".env.template" ]; then
+    ENV_TEMPLATE=".env.template"
+    echo "Found .env.template in current directory"
+elif [ -f "temp_clone/.env.template" ]; then
+    ENV_TEMPLATE="temp_clone/.env.template"
+    echo "Found .env.template in temp_clone directory" 
 else
-    cd temp_clone
-    git pull
-    cd ..
+    echo -e "${RED}Error: .env.template not found in either current directory or cloned repository${NC}"
+    echo "Creating a basic .env.template file..."
+    
+    # Create a basic .env.template file
+    cat > temp_clone/.env.template << EOF
+# MongoDB Configuration
+MONGODB_URI=mongodb://username:password@mongodb_host:27017/rfp_analyzer
+MONGODB_DB=rfp_analyzer
+
+# OpenAI API Key
+OPENAI_API_KEY=your-openai-api-key
+
+# Initial Admin User
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=secure-password-here
+ADMIN_NAME=System Administrator
+
+# AWS Configuration (optional for S3/Lambda features)
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+AWS_DEFAULT_REGION=us-east-1
+EOF
+    
+    ENV_TEMPLATE="temp_clone/.env.template"
+    echo "Created basic .env.template file"
 fi
 
 # Copy the .env.template to .env if it doesn't exist on the EC2 instance
 echo -e "${GREEN}Setting up configuration files...${NC}"
-scp -i "$SSH_KEY" temp_clone/.env.template "$EC2_USER@$EC2_HOST:$DEPLOY_DIR/.env.template"
+echo "Copying $ENV_TEMPLATE to EC2"
+scp -i "$SSH_KEY" "$ENV_TEMPLATE" "$EC2_USER@$EC2_HOST:$DEPLOY_DIR/.env.template"
 
 ssh -i "$SSH_KEY" "$EC2_USER@$EC2_HOST" << ENDSSH
     cd ${DEPLOY_DIR}
@@ -123,26 +158,51 @@ ssh -i "$SSH_KEY" "$EC2_USER@$EC2_HOST" << ENDSSH
     sudo mkdir -p /etc/nginx/conf.d
     sudo cp /tmp/rfp_analyzer_nginx.conf /etc/nginx/conf.d/rfp_analyzer.conf
     
-    # Make sure default config doesn't conflict
+    # Disable the default server block to avoid conflicts
     if [ -f /etc/nginx/nginx.conf ]; then
-        # Check if there's a default server block and back it up if needed
+        # Backup the original file first
+        sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
+        
+        # Check if there's a default server block and comment it out if found
         if grep -q "server {" /etc/nginx/nginx.conf; then
-            sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
-            # Comment out any server blocks in the main nginx.conf
-            sudo sed -i 's/server {/#server {/g' /etc/nginx/nginx.conf
+            echo "Commenting out default server blocks in the main nginx.conf..."
+            sudo sed -i 's/^[ \t]*server {/#server {/g' /etc/nginx/nginx.conf
+            sudo sed -i 's/^[ \t]*location /#location /g' /etc/nginx/nginx.conf
         fi
     fi
     
     # Test Nginx configuration
+    echo "Testing Nginx configuration..."
     sudo nginx -t
     
-    # Reload Nginx if the test is successful
-    if [ \$? -eq 0 ]; then
-        sudo systemctl reload nginx
-        echo "Nginx configured successfully!"
-    else
-        echo "Nginx configuration test failed. Please check the configuration."
+    # Remove any existing default site
+    if [ -f /etc/nginx/conf.d/default.conf ]; then
+        echo "Removing default Nginx site..."
+        sudo mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak
     fi
+    
+    # Restart Nginx (not just reload) to ensure changes are applied
+    echo "Restarting Nginx service..."
+    sudo systemctl restart nginx
+    
+    # Verify Nginx is running
+    echo "Checking Nginx status..."
+    sudo systemctl status nginx
+    
+    # Ensure Docker and Streamlit are running
+    echo "Checking if Streamlit app is running..."
+    cd ${DEPLOY_DIR}
+    sudo docker-compose ps
+    
+    # Show running containers
+    echo "Listing all running Docker containers:"
+    sudo docker ps
+    
+    # Check if port 8501 is being used
+    echo "Checking if port 8501 is in use:"
+    sudo ss -tulpn | grep 8501 || echo "Port 8501 not in use!"
+    
+    echo "Setup complete! Your application should be accessible at http://${EC2_HOST}"
 ENDSSH
 
 # Clean up local temp directory
@@ -152,7 +212,11 @@ echo -e "${GREEN}Deployment completed!${NC}"
 echo -e "${YELLOW}Next steps:${NC}"
 echo -e "1. SSH into your EC2 instance and edit the .env file: ssh -i $SSH_KEY $EC2_USER@$EC2_HOST"
 echo -e "2. From the EC2 instance, run: nano $DEPLOY_DIR/.env"
-echo -e "3. Access your application at: http://$EC2_HOST"
+echo -e "3. Access your application at: http://$EC2_HOST (not http://$EC2_HOST/8501)"
+echo -e "4. If still having issues, run these commands on the EC2 instance:"
+echo -e "   - sudo systemctl status nginx"
+echo -e "   - cd $DEPLOY_DIR && sudo docker-compose logs"
+echo -e "   - sudo docker ps"
 echo -e ""
 echo -e "Note: If you want to set up SSL later, you'll need to:"
 echo -e "1. Uncomment the SSL section in /etc/nginx/conf.d/rfp_analyzer.conf"
