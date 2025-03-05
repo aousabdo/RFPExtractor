@@ -2,9 +2,9 @@
 
 A powerful enterprise-grade tool for analyzing Request for Proposal (RFP) documents, extracting structured information, and providing an AI-powered chat interface to interact with the document content.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io/gallery)
+<!-- [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io/gallery) -->
 
-![RFP Analyzer Demo](https://via.placeholder.com/800x400?text=RFP+Analyzer+Demo)
+<!-- ![RFP Analyzer Demo](https://via.placeholder.com/800x400?text=RFP+Analyzer+Demo) -->
 
 ## 📋 Overview
 
@@ -21,6 +21,7 @@ The main application:
 - **AI-Powered Chat**: Ask natural language questions about the RFP content
 - **Hybrid Processing**: Uses AWS Lambda for large documents with local processing fallback
 - **PDF Report Generation**: Export comprehensive analysis reports in professional PDF format
+- **Document Management**: Store, view, and manage your RFP documents with a user-friendly interface
 
 ### Enterprise Features
 - **Professional UI**: Modern enterprise-grade user interface with clean design
@@ -28,6 +29,9 @@ The main application:
 - **Requirements Categorization**: Automatic grouping of requirements by category
 - **Timeline Analysis**: Visual representation of key dates and deadlines
 - **Integrated Experience**: Combined extraction, analysis, and chat interface in a single application
+- **User Authentication**: Secure login system with role-based access control
+- **Document Library**: Persistent storage for all processed RFP documents
+- **Multi-session Support**: Resume analysis from previous sessions
 
 ### Data Extraction
 - Customer and organization information
@@ -42,40 +46,52 @@ The main application:
 - Interactive organization of extracted RFP data
 - Contextual AI chat with RFP-specific knowledge
 - Error handling with graceful fallback to local processing
+- Document management interface with status indicators
+- Secure document deletion with confirmation flow
 
 ## 🏗️ Architecture
 
-The application uses a hybrid cloud/local architecture:
+The application uses a hybrid cloud/local architecture with MongoDB for persistent storage:
 
 ```
 ┌───────────┐     ┌───────────┐     ┌───────────┐
 │ Streamlit │ ──▶ │  AWS S3   │ ──▶ │AWS Lambda │
 │ Frontend  │     │  Storage  │     │ Processing│
 └───────────┘     └───────────┘     └───────────┘
-      │                                   │
-      │                                   ▼
-      │                            ┌───────────┐
-      │                            │ Structured│
-      │                            │   Data    │
-      │                            └───────────┘
-      │                                   │
-      ▼                                   ▼
-┌───────────┐                      ┌───────────┐
-│  Local    │ ◀────────────────── │   Chat    │
-│Processing │                      │ Interface │
-└───────────┘                      └───────────┘
+      │                │                  │
+      │                │                  ▼
+      │                │           ┌───────────┐
+      │                │           │ Structured│
+      │                │           │   Data    │
+      │                │           └───────────┘
+      │                │                  │
+      ▼                ▼                  ▼
+┌───────────┐    ┌───────────┐     ┌───────────┐
+│  Local    │ ◀─ │ MongoDB   │ ◀── │   Chat    │
+│Processing │    │ Database  │     │ Interface │
+└───────────┘    └───────────┘     └───────────┘
+                       │
+                       ▼
+                ┌───────────┐
+                │ Document  │
+                │ Management│
+                └───────────┘
 ```
 
 - **Frontend**: Streamlit-based web interface
 - **Processing**: AWS Lambda for scalable processing or local processing fallback
-- **Storage**: AWS S3 for temporary document storage
+- **Storage**: 
+  - AWS S3 for document storage
+  - MongoDB for persistent metadata and analysis results
 - **AI Models**: OpenAI API for natural language processing and chat
+- **Authentication**: MongoDB-based user authentication system
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Python 3.8 or higher
-- AWS account (optional for Lambda/S3 features)
+- MongoDB (local or MongoDB Atlas)
+- AWS account (for Lambda/S3 features)
 - OpenAI API key
 
 ### Installation
@@ -97,9 +113,16 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Set up environment variables (optional for AWS integration):
-```bash
-export OPENAI_API_KEY=your_api_key_here
+4. Configure environment variables:
+Create a `.env` file in the root directory with the following variables:
+```
+OPENAI_API_KEY=your_api_key_here
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority&tls=true&tlsAllowInvalidCertificates=false
+MONGODB_DB=rfp_analyzer
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=secure_password
+S3_BUCKET=my-rfp-bucket
+AWS_REGION=us-east-1
 ```
 
 ### Running the Application
@@ -109,57 +132,92 @@ export OPENAI_API_KEY=your_api_key_here
 streamlit run enterprise_rfp_assistant.py
 ```
 
-#### Legacy Applications
+#### With Docker
 ```bash
-streamlit run rfp_extractor_app.py   # Basic RFP Extractor
-streamlit run rfp_chat_assistant.py  # Basic Chat Assistant
+docker-compose up -d
 ```
 
 ## 📖 Usage
 
-### Enterprise RFP Assistant (Recommended)
+### Enterprise RFP Assistant
 
 1. Launch the application: `streamlit run enterprise_rfp_assistant.py`
-2. Enter your OpenAI API key in the sidebar
-3. Upload a PDF RFP document
-4. Click "Process RFP"
-5. View the comprehensive analysis with:
-   - Key metrics dashboard
-   - Detailed requirements organized by category 
-   - Tasks extracted from the document
-   - Timeline of key dates and deadlines
-6. Use the integrated chat assistant to ask questions about the RFP
-7. Export a professional PDF report of the analysis
+2. Log in with your credentials
+3. Configure your OpenAI API key in the settings (if not set in environment variables)
+4. Navigate through the main tabs:
+   - **Overview**: Dashboard with key metrics
+   - **Requirements**: Detailed requirements organized by category
+   - **Tasks**: Key tasks extracted from the document
+   - **Timeline**: Visual timeline of key dates and deadlines
+   - **Documents**: Manage your uploaded RFP documents
 
-### Legacy Applications
+### Document Management Workflow
 
-#### RFP Extractor App
+The application provides a comprehensive document management system:
 
-1. Launch the application
-2. Upload a PDF RFP document
-3. Select sections to extract (or choose "all")
-4. Click "Process PDF"
-5. View the structured extraction results
+#### Uploading Documents
+1. Navigate to the main page
+2. Use the "Upload RFP Document" section to select a PDF file
+3. Click "Process RFP" to analyze the document
+4. The document will be stored in the document library with its analysis results
 
-#### RFP Chat Assistant
+#### Viewing Documents
+1. Navigate to the "Documents" tab
+2. Browse your uploaded documents with details like:
+   - Filename
+   - Upload date
+   - File size
+   - Processing status
+3. Click the "View" button (👁️) on any document to load its analysis
 
-1. Launch the application
-2. Enter your OpenAI API key in the sidebar
-3. Upload a PDF RFP document
-4. Click "Process New RFP"
-5. Once processed, ask questions in the chat interface
-6. Expand "View RFP Analysis" to see the structured data extraction
+#### Managing Documents
+The Documents tab provides several actions for each document:
+- **View**: Load the document analysis for chat and exploration
+- **Download**: Download the original document via a temporary link
+- **Delete**: Remove the document from the system (requires confirmation)
+
+#### Deletion Workflow
+1. Click the delete button (🗑️) on a document
+2. A confirmation dialog appears at the top of the page
+3. Click "Yes, Delete" to confirm or "Cancel" to abort
+4. After deletion, the document list is automatically refreshed
+
+### Chat Interface
+
+Once a document is loaded:
+1. The chat interface is available in the main view
+2. Ask natural language questions about the RFP content
+3. The AI assistant provides context-aware responses based on the document analysis
+4. Previous chat history is cleared when loading a new document
 
 ## ⚙️ Configuration
 
-The Enterprise RFP Assistant is configured via the Streamlit interface:
+### Environment Variables
 
-- **OpenAI API Key**: Required for analysis and chat functionality
-- **AWS Region**: Hard-coded to "us-east-1" (can be modified in code)
-- **S3 Bucket**: Hard-coded to "my-rfp-bucket" (can be modified in code)
-- **Lambda URL**: Hard-coded in the application code
+The application is configured via environment variables:
 
-The assistant automatically falls back to local processing if AWS services are unavailable, ensuring a seamless experience even without cloud connectivity.
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENAI_API_KEY` | Your OpenAI API key | Yes |
+| `MONGODB_URI` | Connection string for MongoDB | Yes |
+| `MONGODB_DB` | MongoDB database name | Yes |
+| `ADMIN_USERNAME` | Admin username | Yes |
+| `ADMIN_PASSWORD` | Admin password | Yes |
+| `S3_BUCKET` | AWS S3 bucket name | Yes for S3 storage |
+| `AWS_REGION` | AWS region | Yes for AWS services |
+| `AWS_LAMBDA_URL` | URL for AWS Lambda function | Optional |
+
+### MongoDB Configuration
+
+The application requires MongoDB for:
+- User authentication
+- Document metadata storage
+- Analysis results persistence
+
+For MongoDB Atlas:
+- Ensure TLS is enabled with proper certificates
+- Set the connection string with appropriate TLS parameters
+- Specify the database name in environment variables
 
 ## 🛠️ Deployment Options
 
@@ -174,25 +232,73 @@ Run the applications on your local machine as described in the Getting Started s
 5. Run the applications with a process manager like PM2 or Supervisor
 
 ### Docker Deployment
-Use Docker to containerize the Enterprise RFP Assistant:
+Use Docker and docker-compose to containerize the Enterprise RFP Assistant:
 
 ```bash
-# Build the Docker image
-docker build -t enterprise-rfp-analyzer .
+# Start the application stack
+docker-compose up -d
 
-# Run the container
-docker run -p 8501:8501 -e OPENAI_API_KEY=your_api_key_here enterprise-rfp-analyzer
+# View logs
+docker-compose logs -f
 
-# Or mount a volume for persistent storage
-docker run -p 8501:8501 -e OPENAI_API_KEY=your_api_key_here -v $(pwd)/data:/app/data enterprise-rfp-analyzer
+# Stop the application
+docker-compose down
 ```
+
+The docker-compose.yml file includes:
+- Application container
+- MongoDB container (or connection to external MongoDB)
+- Proper networking and volume configuration
 
 ## 🔒 Security Considerations
 
 - API keys are handled through environment variables or secure user input
 - AWS credentials are managed via standard AWS credential providers
+- MongoDB connections use TLS for secure data transmission
+- Document deletion requires confirmation to prevent accidental data loss
+- User authentication with secure password handling
 - HTTPS recommended for production deployments
-- Authentication should be added for multi-user deployments
+
+## 💾 Data Management
+
+### Document Storage
+Documents are stored in:
+1. **S3**: Original PDF files with secure access controls
+2. **MongoDB**: Document metadata and analysis results
+
+### Metadata Tracked
+For each document, the system maintains:
+- Original filename
+- Upload timestamp
+- File size
+- Processing status
+- User ID of the uploader
+- S3 storage location
+- Analysis results
+
+### Document Lifecycle
+1. **Upload**: Temporary storage during processing
+2. **Processing**: Analysis by AWS Lambda or local processor
+3. **Storage**: Permanent storage in S3 with metadata in MongoDB
+4. **Retrieval**: Access via the Documents tab
+5. **Deletion**: Removal from both S3 and MongoDB when deleted
+
+## 🔍 Troubleshooting
+
+### MongoDB Connection Issues
+- Verify MongoDB connection string format
+- Ensure TLS settings are correct
+- Check network connectivity to MongoDB server
+
+### Document Processing Failures
+- Verify AWS credentials and permissions
+- Check S3 bucket existence and accessibility
+- Ensure Lambda function is deployed correctly
+
+### UI Issues
+- Clear browser cache
+- Restart the Streamlit application
+- Check for JavaScript console errors
 
 ## 🤝 Contributing
 
