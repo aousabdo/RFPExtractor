@@ -3,9 +3,10 @@ import streamlit as st
 import os
 from datetime import datetime
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 from document_storage import DocumentStorage
+from bson.objectid import ObjectId  # Import ObjectId
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -71,6 +72,11 @@ def render_document_management(document_storage: DocumentStorage, colors: Dict[s
         document_storage: DocumentStorage instance
         colors: Color scheme dictionary
     """
+    # Initialize session state variables for document deletion
+    # This ensures it's always initialized when the function runs
+    if "pending_delete_doc" not in st.session_state:
+        st.session_state.pending_delete_doc = None
+    
     st.markdown(f"""
         <h2 style="color: {colors['primary']}">Document Management</h2>
         <p>View and manage your uploaded RFP documents</p>
@@ -81,6 +87,52 @@ def render_document_management(document_storage: DocumentStorage, colors: Dict[s
     if not user_id:
         st.warning("User ID not found in session state. Please log in again.")
         return
+    
+    # Check if we need to process a deletion
+    pending_delete = st.session_state.get("pending_delete_doc", None)
+    if pending_delete:
+        doc_id = pending_delete
+        
+        # Showing confirmation dialog
+        st.warning(f"Are you sure you want to delete this document?")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("Yes, Delete", type="primary"):
+                with st.spinner("Deleting document..."):
+                    print(f"DEBUG: Attempting to delete document {doc_id}")
+                    try:
+                        # Convert to string just to be safe
+                        document_id = str(doc_id)
+                        
+                        # Try with user_id first
+                        success = document_storage.delete_document(document_id, user_id)
+                        
+                        if not success:
+                            # Try without user_id as fallback
+                            print(f"DEBUG: First attempt failed, trying without user_id")
+                            success = document_storage.delete_document(document_id, None)
+                        
+                        if success:
+                            st.success(f"Document deleted successfully!")
+                            # Safely reset the session state
+                            st.session_state["pending_delete_doc"] = None
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"Failed to delete document. Please check logs.")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+                        print(f"ERROR: {str(e)}")
+                    
+                    # Clear the pending delete regardless of outcome
+                    st.session_state["pending_delete_doc"] = None
+                    
+        with col2:
+            if st.button("Cancel"):
+                # Safely reset the session state
+                st.session_state["pending_delete_doc"] = None
+                st.rerun()
     
     # Fetch documents for this user
     documents = document_storage.get_documents_for_user(user_id)
@@ -158,26 +210,31 @@ def render_document_management(document_storage: DocumentStorage, colors: Dict[s
                     with st.spinner("Generating download link..."):
                         url = document_storage.generate_presigned_url(doc_id, user_id)
                         if url:
-                            st.markdown(f"[Click here to download {filename}]({url})")
+                            # Open in new tab automatically
+                            st.markdown(f"""
+                            <script>
+                                window.open('{url}', '_blank');
+                            </script>
+                            <p>Download started. If it doesn't begin automatically, 
+                            <a href="{url}" target="_blank">click here</a>.</p>
+                            """, unsafe_allow_html=True)
                         else:
                             st.error("Failed to generate download link")
             
             with col3_3:
-                # Delete button
+                # Delete button - now just sets a session state flag
                 if st.button("🗑️", key=f"delete_{doc_id}", help="Delete"):
                     if st.session_state.current_document_id == doc_id:
                         st.warning("This document is currently loaded. Please load a different document first.")
                     else:
-                        delete_confirmed = st.checkbox("Confirm deletion", key=f"confirm_delete_{doc_id}")
-                        if delete_confirmed:
-                            with st.spinner("Deleting document..."):
-                                success = document_storage.delete_document(doc_id, user_id)
-                                if success:
-                                    st.success(f"Document '{filename}' deleted successfully.")
-                                    time.sleep(1)
-                                    st.rerun()
-                                else:
-                                    st.error(f"Failed to delete document '{filename}'.")
+                        # Make sure the session state is initialized
+                        if "pending_delete_doc" not in st.session_state:
+                            st.session_state.pending_delete_doc = None
+                            
+                        # Set the flag for deletion
+                        print(f"DEBUG: Setting pending delete for doc {doc_id}")
+                        st.session_state.pending_delete_doc = doc_id
+                        st.rerun()
         
         # Add a separator between documents
         st.markdown("<hr style='margin: 0.5rem 0; opacity: 0.2;'>", unsafe_allow_html=True)

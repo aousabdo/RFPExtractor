@@ -246,38 +246,90 @@ class DocumentStorage:
             bool: True if successful, False otherwise
         """
         try:
+            # Add debug logging
+            print(f"DEBUG DELETE: Attempting to delete document {document_id} for user {user_id}")
+            logger.info(f"Attempting to delete document {document_id} for user {user_id}")
+            
+            # Validate input types
+            print(f"DEBUG DELETE: document_id type: {type(document_id)}, value: {document_id}")
+            print(f"DEBUG DELETE: user_id type: {type(user_id)}, value: {user_id}")
+            
+            try:
+                # Try to convert to ObjectId and print
+                obj_id = ObjectId(document_id)
+                print(f"DEBUG DELETE: ObjectId conversion successful: {obj_id}")
+            except Exception as e:
+                print(f"DEBUG DELETE: ObjectId conversion FAILED: {str(e)}")
+                # Try to fix it if possible
+                if len(document_id) == 24:
+                    print(f"DEBUG DELETE: Attempting ObjectId conversion with string length 24")
+                else:
+                    print(f"DEBUG DELETE: Invalid ObjectId format, length={len(document_id)}")
+            
             # Get document data first for the S3 key
             query = {"_id": ObjectId(document_id)}
             if user_id:
                 query["user_id"] = user_id  # Add user check if provided
-                
+            
+            print(f"DEBUG DELETE: MongoDB query: {query}")
+            
+            # Test if the document exists
+            doc_exists = self.documents.count_documents(query)
+            print(f"DEBUG DELETE: Document count for query: {doc_exists}")
+            
             document = self.documents.find_one(query)
             if not document:
                 logger.warning(f"No document found with ID {document_id}")
+                print(f"DEBUG DELETE: No document found with query {query}")
+                
+                # Try without user_id to see if that's the issue
+                if user_id:
+                    alt_query = {"_id": ObjectId(document_id)}
+                    alt_doc = self.documents.find_one(alt_query)
+                    if alt_doc:
+                        print(f"DEBUG DELETE: Document found WITHOUT user_id filter. Document user_id: {alt_doc.get('user_id')}")
+                    else:
+                        print(f"DEBUG DELETE: Document not found even without user_id filter")
+                
                 return False
+            
+            # Log document details
+            print(f"DEBUG DELETE: Found document: {document.get('original_filename')}, user_id: {document.get('user_id')}")
+            logger.info(f"Found document: {document['original_filename']}, S3 key: {document.get('s3_key')}")
             
             # Delete from S3
             try:
+                print(f"DEBUG DELETE: Deleting from S3: Bucket={document.get('s3_bucket')}, Key={document.get('s3_key')}")
                 self.s3_client.delete_object(
                     Bucket=document["s3_bucket"],
                     Key=document["s3_key"]
                 )
                 logger.info(f"Deleted from S3: {document['s3_key']}")
+                print(f"DEBUG DELETE: S3 deletion successful")
             except Exception as e:
                 logger.error(f"Failed to delete from S3: {str(e)}")
+                print(f"DEBUG DELETE: S3 deletion failed: {str(e)}")
                 # Continue with MongoDB deletion even if S3 deletion fails
             
             # Delete from MongoDB
+            print(f"DEBUG DELETE: Deleting from MongoDB with query: {{'_id': ObjectId('{document_id}')}}") 
             result = self.documents.delete_one({"_id": ObjectId(document_id)})
+            print(f"DEBUG DELETE: MongoDB deletion result: {result.deleted_count}")
+            
             if result.deleted_count > 0:
                 logger.info(f"Document {document_id} deleted from MongoDB")
+                print(f"DEBUG DELETE: Document deleted successfully")
                 return True
             else:
                 logger.warning(f"Failed to delete document {document_id} from MongoDB")
+                print(f"DEBUG DELETE: MongoDB deletion reported 0 documents deleted")
                 return False
                 
         except Exception as e:
             logger.error(f"Failed to delete document: {str(e)}")
+            print(f"DEBUG DELETE: Exception during deletion: {str(e)}")
+            import traceback
+            print(f"DEBUG DELETE: Traceback: {traceback.format_exc()}")
             return False
     
     def generate_presigned_url(self, document_id: str, user_id: Optional[str] = None, expiration: int = 3600) -> Optional[str]:
