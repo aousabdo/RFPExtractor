@@ -22,6 +22,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 
+from document_storage import DocumentStorage
+import document_management_ui
+
 # Import authentication modules
 from mongodb_connection import get_mongodb_connection
 from auth import UserAuth
@@ -57,13 +60,16 @@ def load_svg_logo():
 # Initialize MongoDB and auth
 @st.cache_resource
 def init_mongodb_auth():
-    """Initialize MongoDB connection and Auth instance"""
+    """Initialize MongoDB connection, Auth instance, and Document Storage"""
     try:
         # Connect to MongoDB
         mongo_client, mongo_db = get_mongodb_connection()
         
         # Create UserAuth instance
         auth_instance = UserAuth(mongo_db)
+        
+        # Create DocumentStorage instance
+        document_storage = DocumentStorage(mongo_db)
         
         # Create initial admin user if environment variables are set
         admin_email = os.getenv("ADMIN_EMAIL")
@@ -73,14 +79,16 @@ def init_mongodb_auth():
         if admin_email and admin_password:
             auth_instance.create_initial_admin(admin_email, admin_password, admin_name)
         
-        return mongo_client, mongo_db, auth_instance
+        return mongo_client, mongo_db, auth_instance, document_storage
     except Exception as e:
         logger.error(f"Failed to initialize MongoDB and Auth: {str(e)}")
         st.error(f"Database connection error: {str(e)}")
-        return None, None, None
+        return None, None, None, None
 
 # Get auth instance
-mongo_client, mongo_db, auth_instance = init_mongodb_auth()
+# mongo_client, mongo_db, auth_instance = init_mongodb_auth()
+mongo_client, mongo_db, auth_instance, document_storage = init_mongodb_auth()
+
 
 # Store logo in session state so we don't reload it every time
 if "logo_svg" not in st.session_state:
@@ -101,6 +109,8 @@ if "system_message" not in st.session_state:
     When answering questions, refer specifically to the content of the uploaded RFP. Be precise and cite page numbers when possible.
     If you don't know or the information is not in the RFP, say so clearly.
     Format your responses professionally with markdown formatting where appropriate."""
+if "current_document_id" not in st.session_state:
+    st.session_state.current_document_id = None
 
 # Try to get API key from environment or let user input it
 openai_api_key = os.getenv("OPENAI_API_KEY", "")
@@ -1037,7 +1047,9 @@ def display_rfp_data(rfp_data: Dict[str, Any]):
                     st.error(f"Error generating PDF: {str(e)}")
     
     # Create tabs for different RFP sections
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Overview", "📝 Requirements", "✅ Tasks", "📅 Timeline"])
+    # tab1, tab2, tab3, tab4 = st.tabs(["📋 Overview", "📝 Requirements", "✅ Tasks", "📅 Timeline"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Overview", "📝 Requirements", "✅ Tasks", "📅 Timeline", "📚 Documents"])
+
     
     # Professional card style
     card_style = """
@@ -1219,6 +1231,9 @@ def display_rfp_data(rfp_data: Dict[str, Any]):
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             st.info("No key dates have been extracted from this RFP.")
+
+    with tab5:
+        document_management_ui.render_document_management(document_storage, colors)
 
 def show_no_rfp_screen():
     """Display welcome screen when no RFP is loaded"""
@@ -1544,14 +1559,14 @@ def main_content():
             # Add warning about chat history being cleared
             st.markdown(f"""
             <div style="background-color: rgba(245, 158, 11, 0.1); border-left: 4px solid {colors['warning']}; 
-                      padding: 0.75rem; margin: 1rem 0; border-radius: 0.25rem;">
+                padding: 0.75rem; margin: 1rem 0; border-radius: 0.25rem;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div style="color: {colors['warning']}; font-weight: bold;">⚠️</div>
                     <div style="font-weight: 500;">Processing a new RFP will clear your chat history.</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
+    
             # Add some space before the button
             st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
             
@@ -1613,6 +1628,31 @@ You can now ask me questions about this RFP, or explore the analysis using the t
                         
                         # Generate a new upload ID to force the file uploader to reset
                         st.session_state.upload_id = str(uuid.uuid4())[:8]
+                        
+                        # Store the document in our permanent storage
+                        user_id = st.session_state.user.get('user_id')
+                        temp_path = f"/tmp/{uploaded_file.name}"
+                        os.makedirs("/tmp", exist_ok=True)
+                        with open(temp_path, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+
+                        document_id = document_storage.store_document(
+                            user_id=user_id,
+                            file_path=temp_path,
+                            original_filename=uploaded_file.name,
+                            metadata={
+                                "uploaded_via": "webapp",
+                                "aws_region": aws_region,
+                                "s3_bucket": s3_bucket,
+                                "selected_sections": selected_sections
+                            }
+                        )
+
+                        # Update the document with analysis results
+                        if document_id:
+                            document_storage.update_analysis_results(document_id, result)
+                            st.session_state.current_document_id = document_id
+                        
                         st.rerun()
     
     # Show current RFP info if available, otherwise show welcome screen
