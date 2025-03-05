@@ -20,6 +20,75 @@ def init_auth_session_state():
         st.session_state.auth_status = None  # Can be "success", "error", "info"
     if "page" not in st.session_state:
         st.session_state.page = "login"  # login, register, forgot_password, main, profile
+        
+    # Add custom CSS for auth buttons and better overall styling
+    st.markdown("""
+    <style>
+    /* Add a subtle gradient background to the page */
+    .main .block-container {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        font-weight: 500 !important;
+        border-radius: 6px !important;
+        height: 2.5rem !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    /* Primary button style */
+    div[data-testid="column"]:nth-of-type(2) .stButton > button {
+        background-color: #0d6efd !important;
+        color: white !important;
+        border: none !important;
+    }
+    
+    /* Primary button hover */
+    div[data-testid="column"]:nth-of-type(2) .stButton > button:hover {
+        background-color: #0b5ed7 !important;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3) !important;
+        transform: translateY(-2px) !important;
+    }
+    
+    /* Secondary button style */
+    div[data-testid="column"]:nth-of-type(1) .stButton > button {
+        background-color: #f8f9fa !important;
+        color: #212529 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    /* Secondary button hover */
+    div[data-testid="column"]:nth-of-type(1) .stButton > button:hover {
+        background-color: #e9ecef !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+        transform: translateY(-2px) !important;
+    }
+    
+    /* Form input styling */
+    div[data-baseweb="input"] {
+        border-radius: 6px !important;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    div[data-baseweb="input"]:focus-within {
+        border-color: #0d6efd !important;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25) !important;
+    }
+    
+    /* Hide Streamlit branding */
+    footer {
+        visibility: hidden;
+    }
+    
+    /* Hide hamburger menu */
+    .st-emotion-cache-1rs6os {
+        visibility: hidden;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 def render_auth_header(colors: Dict[str, str]):
     """
@@ -58,24 +127,50 @@ def login_form(auth_instance, colors: Dict[str, str]):
         auth_instance: UserAuth instance
         colors: Color scheme dictionary
     """
+    # Create a more visually appealing login container with properly integrated logo
     st.markdown(f"""
-    <div style="text-align: center; max-width: 400px; margin: 0 auto; 
-                padding: 2rem; background-color: white; border-radius: 8px; 
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h1 style="margin-bottom: 1.5rem; color: {colors['primary']};">RFP Analyzer</h1>
-        <p style="margin-bottom: 2rem;">Sign in to your account</p>
+    <div style="text-align: center; max-width: 450px; margin: 2rem auto; 
+                padding: 2.5rem; background-color: white; border-radius: 12px; 
+                box-shadow: 0 8px 24px rgba(0,0,0,0.12);">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; 
+                       width: 80px; height: 80px; border-radius: 16px; 
+                       background: linear-gradient(135deg, #0d6efd, #0dcaf0); 
+                       margin-bottom: 1rem;">
+                <span style="font-size: 2.5rem; color: white; font-weight: bold;">RFP</span>
+            </div>
+        </div>
+        <h1 style="margin-bottom: 1rem; color: {colors['primary']}; font-size: 2.2rem; font-weight: 600;">RFP Analyzer</h1>
+        <div style="width: 80px; height: 5px; background: linear-gradient(90deg, {colors['primary']}, {colors['primary']}80); 
+                    margin: 0 auto 2rem auto; border-radius: 10px;"></div>
+        <p style="margin-bottom: 2rem; font-size: 1.1rem; color: #555;">Sign in to your account</p>
     </div>
     """, unsafe_allow_html=True)
     
+    # Make a clean-looking, modern form
     with st.form("login_form"):
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
+        email = st.text_input("Email", key="login_email", 
+                             placeholder="your@email.com")
         
+        password = st.text_input("Password", type="password", key="login_password",
+                               placeholder="••••••••")
+        
+        # Add spacing before buttons
+        st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
+        
+        # Enhance button styling with columns for better layout
         col1, col2 = st.columns([1, 1])
-        with col1:
-            st.form_submit_button("Register", on_click=lambda: set_page("register"))
         with col2:
-            submitted = st.form_submit_button("Login")
+            register_button = st.form_submit_button(
+                "Register", 
+                on_click=lambda: set_page("register"),
+                use_container_width=True
+            )
+        with col1:
+            submitted = st.form_submit_button(
+                "Login",
+                use_container_width=True
+            )
         
         if submitted:
             if not email or not password:
@@ -101,7 +196,7 @@ def login_form(auth_instance, colors: Dict[str, str]):
                 st.session_state.auth_message = "Invalid email or password"
                 st.session_state.auth_status = "error"
     
-    # Display any auth messages
+    # Improve the auth message styling
     if st.session_state.auth_message and st.session_state.auth_status:
         message_color = {
             "success": colors["success"],
@@ -109,11 +204,21 @@ def login_form(auth_instance, colors: Dict[str, str]):
             "info": colors["info"]
         }.get(st.session_state.auth_status, colors["text"])
         
+        icon = {
+            "success": "✓",
+            "error": "⚠",
+            "info": "ℹ"
+        }.get(st.session_state.auth_status, "ℹ")
+        
         st.markdown(f"""
-        <div style="text-align: center; max-width: 400px; margin: 1rem auto; 
-                    padding: 0.75rem; background-color: {message_color}20; 
+        <div style="text-align: center; max-width: 450px; margin: 1rem auto; 
+                    padding: 0.9rem; background-color: {message_color}15; 
+                    border-left: 4px solid {message_color};
                     border-radius: 4px; color: {message_color};">
-            {st.session_state.auth_message}
+            <div style="display: flex; align-items: center; justify-content: center;">
+                <span style="margin-right: 8px; font-size: 1.1rem;">{icon}</span>
+                <span>{st.session_state.auth_message}</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -126,26 +231,50 @@ def register_form(auth_instance, colors: Dict[str, str]):
         colors: Color scheme dictionary
     """
     st.markdown(f"""
-    <div style="text-align: center; max-width: 400px; margin: 0 auto; 
-                padding: 2rem; background-color: white; border-radius: 8px; 
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h1 style="margin-bottom: 1.5rem; color: {colors['primary']};">RFP Analyzer</h1>
-        <p style="margin-bottom: 2rem;">Create a new account</p>
+    <div style="text-align: center; max-width: 450px; margin: 2rem auto; 
+                padding: 2.5rem; background-color: white; border-radius: 12px; 
+                box-shadow: 0 8px 24px rgba(0,0,0,0.12);">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; 
+                       width: 80px; height: 80px; border-radius: 16px; 
+                       background: linear-gradient(135deg, #0d6efd, #0dcaf0); 
+                       margin-bottom: 1rem;">
+                <span style="font-size: 2.5rem; color: white; font-weight: bold;">RFP</span>
+            </div>
+        </div>
+        <h1 style="margin-bottom: 1rem; color: {colors['primary']}; font-size: 2.2rem; font-weight: 600;">RFP Analyzer</h1>
+        <div style="width: 80px; height: 5px; background: linear-gradient(90deg, {colors['primary']}, {colors['primary']}80); 
+                    margin: 0 auto 2rem auto; border-radius: 10px;"></div>
+        <p style="margin-bottom: 2rem; font-size: 1.1rem; color: #555;">Create a new account</p>
     </div>
     """, unsafe_allow_html=True)
     
     with st.form("register_form"):
-        email = st.text_input("Email", key="register_email")
-        fullname = st.text_input("Full Name", key="register_fullname")
-        company = st.text_input("Company (Optional)", key="register_company")
-        password = st.text_input("Password", type="password", key="register_password")
-        confirm_password = st.text_input("Confirm Password", type="password", key="register_confirm")
+        email = st.text_input("Email", key="register_email", 
+                             placeholder="your@email.com")
+        
+        fullname = st.text_input("Full Name", key="register_fullname",
+                                placeholder="John Doe")
+        
+        company = st.text_input("Company (Optional)", key="register_company",
+                               placeholder="Your Organization")
+        
+        password = st.text_input("Password", type="password", key="register_password",
+                               placeholder="••••••••")
+        
+        confirm_password = st.text_input("Confirm Password", type="password", key="register_confirm",
+                                       placeholder="••••••••")
+        
+        # Add spacing before buttons
+        st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
         
         col1, col2 = st.columns([1, 1])
         with col1:
-            st.form_submit_button("Back to Login", on_click=lambda: set_page("login"))
+            st.form_submit_button("Back to Login", 
+                                 on_click=lambda: set_page("login"),
+                                 use_container_width=True)
         with col2:
-            submitted = st.form_submit_button("Register")
+            submitted = st.form_submit_button("Register", use_container_width=True)
         
         if submitted:
             if not email or not fullname or not password or not confirm_password:
@@ -173,7 +302,7 @@ def register_form(auth_instance, colors: Dict[str, str]):
                 st.session_state.auth_message = str(e)
                 st.session_state.auth_status = "error"
     
-    # Display any auth messages
+    # Improve the auth message styling
     if st.session_state.auth_message and st.session_state.auth_status:
         message_color = {
             "success": colors["success"],
@@ -181,11 +310,21 @@ def register_form(auth_instance, colors: Dict[str, str]):
             "info": colors["info"]
         }.get(st.session_state.auth_status, colors["text"])
         
+        icon = {
+            "success": "✓",
+            "error": "⚠",
+            "info": "ℹ"
+        }.get(st.session_state.auth_status, "ℹ")
+        
         st.markdown(f"""
-        <div style="text-align: center; max-width: 400px; margin: 1rem auto; 
-                    padding: 0.75rem; background-color: {message_color}20; 
+        <div style="text-align: center; max-width: 450px; margin: 1rem auto; 
+                    padding: 0.9rem; background-color: {message_color}15; 
+                    border-left: 4px solid {message_color};
                     border-radius: 4px; color: {message_color};">
-            {st.session_state.auth_message}
+            <div style="display: flex; align-items: center; justify-content: center;">
+                <span style="margin-right: 8px; font-size: 1.1rem;">{icon}</span>
+                <span>{st.session_state.auth_message}</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
