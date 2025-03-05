@@ -147,56 +147,67 @@ def login_form(auth_instance, colors: Dict[str, str]):
     </div>
     """, unsafe_allow_html=True)
     
-    # Make a clean-looking, modern form
-    with st.form("login_form"):
-        email = st.text_input("Email", key="login_email", 
-                             placeholder="your@email.com")
-        
-        password = st.text_input("Password", type="password", key="login_password",
-                               placeholder="••••••••")
-        
-        # Add spacing before buttons
-        st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
-        
-        # Enhance button styling with columns for better layout
-        col1, col2 = st.columns([1, 1])
+    # Create a container to match the width of the logo card
+    form_container = st.container()
+    with form_container:
+        # Center the form and constrain its width
+        col1, col2, col3 = st.columns([1, 10, 1])
         with col2:
-            register_button = st.form_submit_button(
-                "Register", 
-                on_click=lambda: set_page("register"),
-                use_container_width=True
-            )
-        with col1:
-            submitted = st.form_submit_button(
-                "Login",
-                use_container_width=True
-            )
-        
-        if submitted:
-            if not email or not password:
-                st.session_state.auth_message = "Please enter both email and password"
-                st.session_state.auth_status = "error"
-                return
-            
-            # Attempt login
-            token = auth_instance.login(email, password)
-            if token:
-                st.session_state.auth_token = token
-                user_info = auth_instance.validate_session(token)
-                if user_info:
-                    st.session_state.user = user_info
-                    st.session_state.auth_message = f"Welcome back, {user_info['fullname']}!"
-                    st.session_state.auth_status = "success"
-                    st.session_state.page = "main"
-                    st.rerun()  # Refresh to show authenticated content
-                else:
-                    st.session_state.auth_message = "Authentication error"
-                    st.session_state.auth_status = "error"
-            else:
-                st.session_state.auth_message = "Invalid email or password"
-                st.session_state.auth_status = "error"
+            # Make a clean-looking, modern form
+            with st.form("login_form"):
+                email = st.text_input("Email", key="login_email", 
+                                     placeholder="your@email.com")
+                
+                password = st.text_input("Password", type="password", key="login_password",
+                                       placeholder="••••••••")
+                
+                # Add spacing before buttons
+                st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
+                
+                # Enhance button styling with columns for better layout
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    submitted = st.form_submit_button(
+                        "Login",
+                        use_container_width=True
+                    )
+                with col2:
+                    register_button = st.form_submit_button(
+                        "Register", 
+                        on_click=lambda: set_page("register"),
+                        use_container_width=True
+                    )
+                # with col1:
+                #     submitted = st.form_submit_button(
+                #         "Login",
+                #         use_container_width=True
+                #     )
+                
+                if submitted:
+                    if not email or not password:
+                        st.session_state.auth_message = "Please enter both email and password"
+                        st.session_state.auth_status = "error"
+                        return
+                    
+                    # Attempt login
+                    token = auth_instance.login(email, password)
+                    if token:
+                        st.session_state.auth_token = token
+                        user_info = auth_instance.validate_session(token)
+                        if user_info:
+                            st.session_state.user = user_info
+                            st.session_state.auth_message = f"Welcome back, {user_info['fullname']}!"
+                            st.session_state.auth_status = "success"
+                            st.session_state.page = "main"
+                            st.rerun()  # Refresh to show authenticated content
+                        else:
+                            st.session_state.auth_message = "Authentication error"
+                            st.session_state.auth_status = "error"
+                    else:
+                        st.session_state.auth_message = "Invalid email or password"
+                        st.session_state.auth_status = "error"
     
-    # Improve the auth message styling
+    # Improve the auth message styling with matching width
     if st.session_state.auth_message and st.session_state.auth_status:
         message_color = {
             "success": colors["success"],
@@ -210,17 +221,20 @@ def login_form(auth_instance, colors: Dict[str, str]):
             "info": "ℹ"
         }.get(st.session_state.auth_status, "ℹ")
         
-        st.markdown(f"""
-        <div style="text-align: center; max-width: 450px; margin: 1rem auto; 
-                    padding: 0.9rem; background-color: {message_color}15; 
-                    border-left: 4px solid {message_color};
-                    border-radius: 4px; color: {message_color};">
-            <div style="display: flex; align-items: center; justify-content: center;">
-                <span style="margin-right: 8px; font-size: 1.1rem;">{icon}</span>
-                <span>{st.session_state.auth_message}</span>
+        # Use the same column structure to keep consistent width
+        _, msg_col, _ = st.columns([1, 10, 1])
+        with msg_col:
+            st.markdown(f"""
+            <div style="text-align: center; width: 100%; margin: 1rem auto; 
+                        padding: 0.9rem; background-color: {message_color}15; 
+                        border-left: 4px solid {message_color};
+                        border-radius: 4px; color: {message_color};">
+                <div style="display: flex; align-items: center; justify-content: center;">
+                    <span style="margin-right: 8px; font-size: 1.1rem;">{icon}</span>
+                    <span>{st.session_state.auth_message}</span>
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
 def register_form(auth_instance, colors: Dict[str, str]):
     """
@@ -249,60 +263,66 @@ def register_form(auth_instance, colors: Dict[str, str]):
     </div>
     """, unsafe_allow_html=True)
     
-    with st.form("register_form"):
-        email = st.text_input("Email", key="register_email", 
-                             placeholder="your@email.com")
-        
-        fullname = st.text_input("Full Name", key="register_fullname",
-                                placeholder="John Doe")
-        
-        company = st.text_input("Company (Optional)", key="register_company",
-                               placeholder="Your Organization")
-        
-        password = st.text_input("Password", type="password", key="register_password",
-                               placeholder="••••••••")
-        
-        confirm_password = st.text_input("Confirm Password", type="password", key="register_confirm",
-                                       placeholder="••••••••")
-        
-        # Add spacing before buttons
-        st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
-        
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.form_submit_button("Back to Login", 
-                                 on_click=lambda: set_page("login"),
-                                 use_container_width=True)
+    # Create a container to match the width of the logo card
+    form_container = st.container()
+    with form_container:
+        # Center the form and constrain its width
+        col1, col2, col3 = st.columns([1, 10, 1])
         with col2:
-            submitted = st.form_submit_button("Register", use_container_width=True)
-        
-        if submitted:
-            if not email or not fullname or not password or not confirm_password:
-                st.session_state.auth_message = "Please fill in all required fields"
-                st.session_state.auth_status = "error"
-                return
-            
-            if password != confirm_password:
-                st.session_state.auth_message = "Passwords do not match"
-                st.session_state.auth_status = "error"
-                return
-            
-            # Attempt registration
-            try:
-                success = auth_instance.register_user(email, password, fullname, company)
-                if success:
-                    st.session_state.auth_message = "Registration successful! You can now log in."
-                    st.session_state.auth_status = "success"
-                    st.session_state.page = "login"
-                    st.rerun()
-                else:
-                    st.session_state.auth_message = "Registration failed"
-                    st.session_state.auth_status = "error"
-            except ValueError as e:
-                st.session_state.auth_message = str(e)
-                st.session_state.auth_status = "error"
+            with st.form("register_form"):
+                email = st.text_input("Email", key="register_email", 
+                                     placeholder="your@email.com")
+                
+                fullname = st.text_input("Full Name", key="register_fullname",
+                                        placeholder="John Doe")
+                
+                company = st.text_input("Company (Optional)", key="register_company",
+                                       placeholder="Your Organization")
+                
+                password = st.text_input("Password", type="password", key="register_password",
+                                       placeholder="••••••••")
+                
+                confirm_password = st.text_input("Confirm Password", type="password", key="register_confirm",
+                                               placeholder="••••••••")
+                
+                # Add spacing before buttons
+                st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
+                
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    st.form_submit_button("Back to Login", 
+                                         on_click=lambda: set_page("login"),
+                                         use_container_width=True)
+                with col2:
+                    submitted = st.form_submit_button("Register", use_container_width=True)
+                
+                if submitted:
+                    if not email or not fullname or not password or not confirm_password:
+                        st.session_state.auth_message = "Please fill in all required fields"
+                        st.session_state.auth_status = "error"
+                        return
+                    
+                    if password != confirm_password:
+                        st.session_state.auth_message = "Passwords do not match"
+                        st.session_state.auth_status = "error"
+                        return
+                    
+                    # Attempt registration
+                    try:
+                        success = auth_instance.register_user(email, password, fullname, company)
+                        if success:
+                            st.session_state.auth_message = "Registration successful! You can now log in."
+                            st.session_state.auth_status = "success"
+                            st.session_state.page = "login"
+                            st.rerun()
+                        else:
+                            st.session_state.auth_message = "Registration failed"
+                            st.session_state.auth_status = "error"
+                    except ValueError as e:
+                        st.session_state.auth_message = str(e)
+                        st.session_state.auth_status = "error"
     
-    # Improve the auth message styling
+    # Improve the auth message styling with matching width
     if st.session_state.auth_message and st.session_state.auth_status:
         message_color = {
             "success": colors["success"],
@@ -316,17 +336,20 @@ def register_form(auth_instance, colors: Dict[str, str]):
             "info": "ℹ"
         }.get(st.session_state.auth_status, "ℹ")
         
-        st.markdown(f"""
-        <div style="text-align: center; max-width: 450px; margin: 1rem auto; 
-                    padding: 0.9rem; background-color: {message_color}15; 
-                    border-left: 4px solid {message_color};
-                    border-radius: 4px; color: {message_color};">
-            <div style="display: flex; align-items: center; justify-content: center;">
-                <span style="margin-right: 8px; font-size: 1.1rem;">{icon}</span>
-                <span>{st.session_state.auth_message}</span>
+        # Use the same column structure to keep consistent width
+        _, msg_col, _ = st.columns([1, 10, 1])
+        with msg_col:
+            st.markdown(f"""
+            <div style="text-align: center; width: 100%; margin: 1rem auto; 
+                        padding: 0.9rem; background-color: {message_color}15; 
+                        border-left: 4px solid {message_color};
+                        border-radius: 4px; color: {message_color};">
+                <div style="display: flex; align-items: center; justify-content: center;">
+                    <span style="margin-right: 8px; font-size: 1.1rem;">{icon}</span>
+                    <span>{st.session_state.auth_message}</span>
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
 def user_profile(auth_instance, colors: Dict[str, str]):
     """
