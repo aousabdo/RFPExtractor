@@ -190,22 +190,27 @@ def login_form(auth_instance, colors: Dict[str, str]):
                         return
                     
                     # Attempt login
-                    token = auth_instance.login(email, password)
-                    if token:
-                        st.session_state.auth_token = token
-                        user_info = auth_instance.validate_session(token)
-                        if user_info:
-                            st.session_state.user = user_info
-                            st.session_state.auth_message = f"Welcome back, {user_info['fullname']}!"
-                            st.session_state.auth_status = "success"
-                            st.session_state.page = "main"
-                            st.rerun()  # Refresh to show authenticated content
+                    try:
+                        token = auth_instance.login(email, password)
+                        if token:
+                            st.session_state.auth_token = token
+                            user_info = auth_instance.validate_session(token)
+                            if user_info:
+                                st.session_state.user = user_info
+                                st.session_state.auth_message = f"Welcome back, {user_info['fullname']}!"
+                                st.session_state.auth_status = "success"
+                                st.session_state.page = "main"
+                                st.rerun()  # Refresh to show authenticated content
+                            else:
+                                st.session_state.auth_message = "Authentication error"
+                                st.session_state.auth_status = "error"
                         else:
-                            st.session_state.auth_message = "Authentication error"
+                            st.session_state.auth_message = "Invalid email or password"
                             st.session_state.auth_status = "error"
-                    else:
-                        st.session_state.auth_message = "Invalid email or password"
-                        st.session_state.auth_status = "error"
+                    except ValueError as e:
+                        # This will catch the pending approval error
+                        st.session_state.auth_message = str(e)
+                        st.session_state.auth_status = "info"
     
     # Improve the auth message styling with matching width
     if st.session_state.auth_message and st.session_state.auth_status:
@@ -269,9 +274,17 @@ def register_form(auth_instance, colors: Dict[str, str]):
         # Center the form and constrain its width
         col1, col2, col3 = st.columns([1, 10, 1])
         with col2:
+            # Display domain restriction notice
+            st.markdown("""
+            <div style="text-align: center; margin-bottom: 1rem; padding: 0.5rem; 
+                        background-color: #f8f9fa; border-radius: 4px; font-size: 0.9rem; color: #555;">
+                <strong>Note:</strong> Registration is limited to Aset Partners email addresses only (@asetpartners.com)
+            </div>
+            """, unsafe_allow_html=True)
+            
             with st.form("register_form"):
                 email = st.text_input("Email", key="register_email", 
-                                     placeholder="your@email.com")
+                                     placeholder="yourname@asetpartners.com")
                 
                 fullname = st.text_input("Full Name", key="register_fullname",
                                         placeholder="John Doe")
@@ -311,8 +324,8 @@ def register_form(auth_instance, colors: Dict[str, str]):
                     try:
                         success = auth_instance.register_user(email, password, fullname, company)
                         if success:
-                            st.session_state.auth_message = "Registration successful! You can now log in."
-                            st.session_state.auth_status = "success"
+                            st.session_state.auth_message = "Registration successful! Your account is pending admin approval. You will be able to log in once approved."
+                            st.session_state.auth_status = "info"
                             st.session_state.page = "login"
                             st.rerun()
                         else:
@@ -384,6 +397,50 @@ def user_profile(auth_instance, colors: Dict[str, str]):
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Admin Section - Only show for admin users
+    if user.get('role') == 'admin':
+        with st.expander("Admin: User Approval", expanded=True):
+            st.markdown("##### Pending User Approvals")
+            
+            # Get list of pending users
+            pending_users = auth_instance.get_pending_users(user.get('user_id'))
+            
+            if not pending_users:
+                st.info("No pending users to approve.")
+            else:
+                # Display each pending user
+                for pending_user in pending_users:
+                    col1, col2, col3 = st.columns([3, 1, 1])
+                    with col1:
+                        st.markdown(f"""
+                        <div>
+                            <strong>{pending_user.get('fullname')}</strong><br>
+                            {pending_user.get('email')}<br>
+                            <small>Company: {pending_user.get('company') or 'Not specified'}</small><br>
+                            <small>Registered: {pending_user.get('registration_date').strftime('%Y-%m-%d %H:%M:%S') if pending_user.get('registration_date') else 'Unknown'}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        # Approve button
+                        if st.button("Approve", key=f"approve_{pending_user.get('_id')}"):
+                            if auth_instance.approve_user(user.get('user_id'), pending_user.get('_id'), approved=True):
+                                st.success(f"User {pending_user.get('email')} approved.")
+                                st.rerun()
+                            else:
+                                st.error("Failed to approve user.")
+                    
+                    with col3:
+                        # Reject button
+                        if st.button("Reject", key=f"reject_{pending_user.get('_id')}"):
+                            if auth_instance.approve_user(user.get('user_id'), pending_user.get('_id'), approved=False):
+                                st.warning(f"User {pending_user.get('email')} rejected.")
+                                st.rerun()
+                            else:
+                                st.error("Failed to reject user.")
+                    
+                    st.markdown("<hr>", unsafe_allow_html=True)
     
     # Password change section
     with st.expander("Change Password"):

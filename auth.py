@@ -77,9 +77,17 @@ class UserAuth:
             bool: True if registration successful, False otherwise
             
         Raises:
-            ValueError: If email already exists
+            ValueError: If email already exists or domain is not allowed
         """
         try:
+            # Verify email domain is allowed
+            allowed_domains = ["asetpartners.com"]
+            email_domain = email.split('@')[-1].lower()
+            
+            if email_domain not in allowed_domains:
+                logger.warning(f"Registration attempt with unauthorized domain: {email_domain}")
+                raise ValueError(f"Registration is only allowed for Aset Partners emails (@asetpartners.com). Got: {email_domain}")
+            
             # Check if email already exists
             if self.users.find_one({"email": email.lower()}):
                 raise ValueError("Email already registered")
@@ -97,12 +105,14 @@ class UserAuth:
                 "role": "user",  # Default role
                 "created_at": datetime.utcnow(),
                 "last_login": None,
-                "active": True
+                "active": False,  # Account inactive until approved
+                "pending_approval": True,
+                "registration_date": datetime.utcnow()
             }
             
             # Insert user
             result = self.users.insert_one(user)
-            logger.info(f"User registered: {email}")
+            logger.info(f"User registered (pending approval): {email}")
             return bool(result.inserted_id)
             
         except ValueError as e:
@@ -129,6 +139,11 @@ class UserAuth:
             if not user:
                 logger.warning(f"Login attempt for non-existent user: {email}")
                 return None
+            
+            # Check if account is pending approval
+            if user.get("pending_approval", False):
+                logger.warning(f"Login attempt for pending approval account: {email}")
+                raise ValueError("Your account is pending admin approval. Please check back later.")
             
             # Check if user is active
             if not user.get("active", True):
@@ -306,4 +321,95 @@ class UserAuth:
             
         except Exception as e:
             logger.error(f"Admin creation error: {str(e)}")
+            return False
+    
+    def get_pending_users(self, admin_user_id: str) -> list:
+        """
+        Get list of users pending approval
+        
+        Args:
+            admin_user_id: ID of the admin user making the request
+            
+        Returns:
+            list: List of pending user records
+        """
+        # Verify admin privileges
+        admin = self.users.find_one({"_id": ObjectId(admin_user_id)})
+        if not admin or admin.get("role") != "admin":
+            logger.warning(f"Non-admin user attempted to access pending users: {admin_user_id}")
+            return []
+        
+        # Get pending users
+        try:
+            pending_users = list(self.users.find(
+                {"pending_approval": True},
+                {"password_hash": 0, "password_salt": 0}  # Exclude sensitive fields
+            ))
+            
+            # Convert ObjectId to string for JSON serialization
+            for user in pending_users:
+                user["_id"] = str(user["_id"])
+                
+            return pending_users
+        except Exception as e:
+            logger.error(f"Error fetching pending users: {str(e)}")
+            return []
+    
+    def approve_user(self, admin_user_id: str, user_id: str, approved: bool = True) -> bool:
+        """
+        Approve or reject a pending user
+        
+        Args:
+            admin_user_id: ID of the admin user making the approval
+            user_id: ID of the user to approve
+            approved: True to approve, False to reject
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        # Verify admin privileges
+        admin = self.users.find_one({"_id": ObjectId(admin_user_id)})
+        if not admin or admin.get("role") != "admin":
+            logger.warning(f"Non-admin user attempted to approve user: {admin_user_id}")
+            return False
+        
+        try:
+            if approved:
+                # Approve the user
+                result = self.users.update_one(
+                    {"_id": ObjectId(user_id), "pending_approval": True},
+                    {
+                        "$set": {
+                            "active": True,
+                            "pending_approval": False,
+                            "approved_by": admin_user_id,
+                            "approved_at": datetime.utcnow()
+                        }
+                    }
+                )
+                if result.modified_count:
+                    user = self.users.find_one({"_id": ObjectId(user_id)})
+                    logger.info(f"User approved: {user.get('email')} by admin: {admin.get('email')}")
+                    return True
+            else:
+                # Reject the user
+                result = self.users.update_one(
+                    {"_id": ObjectId(user_id), "pending_approval": True},
+                    {
+                        "$set": {
+                            "active": False,
+                            "pending_approval": False,
+                            "rejected_by": admin_user_id,
+                            "rejected_at": datetime.utcnow()
+                        }
+                    }
+                )
+                if result.modified_count:
+                    user = self.users.find_one({"_id": ObjectId(user_id)})
+                    logger.info(f"User rejected: {user.get('email')} by admin: {admin.get('email')}")
+                    return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error approving/rejecting user: {str(e)}")
             return False
