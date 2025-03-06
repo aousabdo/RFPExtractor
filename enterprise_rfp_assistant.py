@@ -113,11 +113,82 @@ if "current_document_id" not in st.session_state:
     st.session_state.current_document_id = None
 
 # Try to get API key from environment or let user input it
-openai_api_key = os.getenv("OPENAI_API_KEY", "")
+def get_env_api_key():
+    """Get API key from environment with proper formatting"""
+    try:
+        # Read directly from .env file to avoid any OS environment variable issues
+        with open('.env', 'r') as f:
+            for line in f:
+                if line.strip() and line.startswith('OPENAI_API_KEY=') and not line.startswith('#'):
+                    # Extract everything after the equals sign
+                    api_key = line.split('=', 1)[1].strip()
+                    print(f"DEBUG - Found API key in .env file with length: {len(api_key)}")
+                    return api_key
+    except Exception as e:
+        print(f"DEBUG - Error reading .env file: {str(e)}")
+    
+    # Fallback to os.getenv
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    print(f"DEBUG - Fallback to os.getenv with key length: {len(api_key) if api_key else 0}")
+    return api_key
+
+# Get API key using the new function
+openai_api_key = get_env_api_key()
+
+# Add debug logging for API key
+def debug_api_key(key, source):
+    if key:
+        # Only show first 4 and last 4 characters for security
+        masked_key = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "***"
+        print(f"DEBUG - API KEY from {source}: {masked_key}, Length: {len(key)}")
+    else:
+        print(f"DEBUG - API KEY from {source}: Not set or empty")
+
+# Debug the initial env API key
+debug_api_key(openai_api_key, "ENV file")
+
+# Initialize session state for API key with environment value if not already set
+if "openai_api_key" not in st.session_state:
+    st.session_state.openai_api_key = openai_api_key
+    debug_api_key(st.session_state.openai_api_key, "Session state initialization")
+    # Also set it in environment for any subprocess calls
+    if openai_api_key:
+        os.environ["OPENAI_API_KEY"] = openai_api_key
+        debug_api_key(os.environ.get("OPENAI_API_KEY", ""), "Environment set at startup")
 
 # Function to get OpenAI client
 def get_openai_client():
-    return OpenAI(api_key=st.session_state.openai_api_key)
+    # Use session state API key if available, otherwise fall back to environment key
+    api_key = st.session_state.openai_api_key or openai_api_key
+    debug_api_key(api_key, "get_openai_client")
+    
+    # Basic validation to ensure the API key has the expected format
+    if not api_key:
+        raise ValueError("No OpenAI API key found. Please provide one in the settings.")
+    elif not (api_key.startswith('sk-') and len(api_key) > 20):
+        print(f"WARNING: API key may have invalid format - length: {len(api_key)}, starts with: {api_key[:5] if len(api_key) >= 5 else api_key}")
+    
+    return OpenAI(api_key=api_key)
+
+def test_api_key(api_key):
+    """Test if the API key is valid by making a small request to OpenAI"""
+    if not api_key:
+        return False, "No API key provided"
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        # Make a minimal API call
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=5
+        )
+        return True, "API key is valid"
+    except Exception as e:
+        error_msg = str(e)
+        if "quota" in error_msg.lower() or "billing" in error_msg.lower():
+            return False, f"API key has quota issues: {error_msg}"
+        return False, f"Invalid API key: {error_msg}"
 
 # Define color scheme - simplified to just use light mode colors
 def get_colors():
@@ -1290,6 +1361,7 @@ def process_pdf_locally(pdf_path, selected_sections):
         # Save the user's OpenAI API key to environment for the local processor to use
         if "openai_api_key" in st.session_state and st.session_state.openai_api_key:
             os.environ["OPENAI_API_KEY"] = st.session_state.openai_api_key
+            debug_api_key(os.environ.get("OPENAI_API_KEY", ""), "Environment in process_pdf_locally")
         else:
             st.error("OpenAI API Key is required for local processing. Please enter it in the sidebar.")
             return None
@@ -1374,7 +1446,9 @@ def process_uploaded_pdf(uploaded_file, aws_region, s3_bucket, s3_key, lambda_ur
 def generate_response(prompt: str) -> str:
     """Generate a response using OpenAI based on the prompt and RFP context"""
     try:
+        print("DEBUG - Generating response with prompt:", prompt[:50] + "..." if len(prompt) > 50 else prompt)
         client = get_openai_client()
+        debug_api_key(client.api_key, "OpenAI client before API call")
         
         # Format RFP data for context
         rfp_context = ""
@@ -1447,17 +1521,18 @@ def generate_response(prompt: str) -> str:
         return f"I apologize, but I encountered an error: {str(e)}"
 
 def display_chat_interface():
-    """Display the chat interface with enterprise styling using Streamlit's native chat components"""
+    """Display the chat interface for interacting with the RFP data"""
+    st.markdown("<h3>Ask about this RFP</h3>", unsafe_allow_html=True)
     
-    # Display chat messages using Streamlit's chat_message component
+    # Initialize message history if not already done
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    # Display previous messages
     for message in st.session_state.messages:
-        if message["role"] == "user":
-            with st.chat_message("user"):
-                st.markdown(message["content"])
-        else:
-            with st.chat_message("assistant", avatar="🤖"):
-                st.markdown(message["content"])
-    
+        with st.chat_message(message["role"], avatar="🤖" if message["role"] == "assistant" else None):
+            st.markdown(message["content"])
+
     # Chat input using Streamlit's native component
     if "openai_api_key" in st.session_state and st.session_state.openai_api_key:
         if prompt := st.chat_input("Ask me about this RFP..."):
@@ -1529,10 +1604,47 @@ def main_content():
         </div>
         """, unsafe_allow_html=True)
         
-        api_key = st.text_input("API Key", value=openai_api_key, type="password", 
-                                help="Your OpenAI API key is required for RFP analysis")
-        if api_key:
-            st.session_state.openai_api_key = api_key
+        # Check if environment API key exists
+        has_env_api_key = bool(openai_api_key)
+        
+        # Option to use own API key
+        use_own_api_key = st.checkbox("Use my own API key", 
+                                     value=not has_env_api_key,
+                                     help="Check this to provide your own OpenAI API key")
+        
+        if use_own_api_key:
+            # User provides their own API key
+            user_api_key = st.text_input("API Key", value="", type="password", 
+                                   help="Your OpenAI API key is required for RFP analysis")
+            if user_api_key:
+                st.session_state.openai_api_key = user_api_key
+                debug_api_key(user_api_key, "User input in sidebar")
+        else:
+            # Use environment API key without showing it
+            if has_env_api_key:
+                st.success("Using system API key")
+                # Ensure the environment API key is set in session state
+                st.session_state.openai_api_key = openai_api_key
+                debug_api_key(openai_api_key, "Environment key set in sidebar")
+            else:
+                st.error("No system API key found. Please enter your own API key.")
+        
+        # Ensure OpenAI API key is also set in environment for subprocess calls
+        if "openai_api_key" in st.session_state and st.session_state.openai_api_key:
+            os.environ["OPENAI_API_KEY"] = st.session_state.openai_api_key
+            debug_api_key(os.environ.get("OPENAI_API_KEY", ""), "Environment updated in sidebar")
+        
+        # Add a button to test the API key
+        if st.button("Test API Key"):
+            with st.spinner("Testing API key..."):
+                if "openai_api_key" in st.session_state and st.session_state.openai_api_key:
+                    is_valid, message = test_api_key(st.session_state.openai_api_key)
+                    if is_valid:
+                        st.success(message)
+                    else:
+                        st.error(message)
+                else:
+                    st.error("No API key available to test")
         
         st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
         
