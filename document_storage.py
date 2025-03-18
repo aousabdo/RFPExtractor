@@ -5,7 +5,7 @@ import logging
 import boto3
 import botocore
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 
 # Configure logging
@@ -236,100 +236,68 @@ class DocumentStorage:
     
     def delete_document(self, document_id: str, user_id: Optional[str] = None) -> bool:
         """
-        Delete a document from S3 and MongoDB
+        Delete a document from both MongoDB and S3
         
         Args:
-            document_id: Document ID
-            user_id: Optional user ID for permission check
+            document_id: Document ID to delete
+            user_id: Optional user ID for permission checking (if None, no permission check)
             
         Returns:
             bool: True if successful, False otherwise
         """
         try:
-            # Add debug logging
-            print(f"DEBUG DELETE: Attempting to delete document {document_id} for user {user_id}")
-            logger.info(f"Attempting to delete document {document_id} for user {user_id}")
+            # Log the attempt
+            logger.info(f"Attempting to delete document {document_id} by user {user_id}")
             
-            # Validate input types
-            print(f"DEBUG DELETE: document_id type: {type(document_id)}, value: {document_id}")
-            print(f"DEBUG DELETE: user_id type: {type(user_id)}, value: {user_id}")
-            
+            # Handle ObjectId conversion
             try:
-                # Try to convert to ObjectId and print
-                obj_id = ObjectId(document_id)
-                print(f"DEBUG DELETE: ObjectId conversion successful: {obj_id}")
+                doc_obj_id = ObjectId(document_id)
             except Exception as e:
-                print(f"DEBUG DELETE: ObjectId conversion FAILED: {str(e)}")
-                # Try to fix it if possible
-                if len(document_id) == 24:
-                    print(f"DEBUG DELETE: Attempting ObjectId conversion with string length 24")
-                else:
-                    print(f"DEBUG DELETE: Invalid ObjectId format, length={len(document_id)}")
+                logger.error(f"Invalid document ID format: {document_id}, error: {str(e)}")
+                return False
             
-            # Get document data first for the S3 key
-            query = {"_id": ObjectId(document_id)}
+            # Find document record
+            query = {"_id": doc_obj_id}
             if user_id:
-                query["user_id"] = user_id  # Add user check if provided
+                # For admin user_id is the admin's ID, not the document owner
+                # So we don't add it to the query - admins can delete any document
+                pass
             
-            print(f"DEBUG DELETE: MongoDB query: {query}")
-            
-            # Test if the document exists
-            doc_exists = self.documents.count_documents(query)
-            print(f"DEBUG DELETE: Document count for query: {doc_exists}")
+            # Log the query
+            logger.info(f"Document delete query: {query}")
             
             document = self.documents.find_one(query)
             if not document:
-                logger.warning(f"No document found with ID {document_id}")
-                print(f"DEBUG DELETE: No document found with query {query}")
-                
-                # Try without user_id to see if that's the issue
-                if user_id:
-                    alt_query = {"_id": ObjectId(document_id)}
-                    alt_doc = self.documents.find_one(alt_query)
-                    if alt_doc:
-                        print(f"DEBUG DELETE: Document found WITHOUT user_id filter. Document user_id: {alt_doc.get('user_id')}")
-                    else:
-                        print(f"DEBUG DELETE: Document not found even without user_id filter")
-                
+                logger.warning(f"Document not found or access denied: {document_id}")
                 return False
             
-            # Log document details
-            print(f"DEBUG DELETE: Found document: {document.get('original_filename')}, user_id: {document.get('user_id')}")
-            logger.info(f"Found document: {document['original_filename']}, S3 key: {document.get('s3_key')}")
+            # Log the document we're about to delete
+            logger.info(f"Found document to delete: {document.get('original_filename')}")
             
-            # Delete from S3
-            try:
-                print(f"DEBUG DELETE: Deleting from S3: Bucket={document.get('s3_bucket')}, Key={document.get('s3_key')}")
-                self.s3_client.delete_object(
-                    Bucket=document["s3_bucket"],
-                    Key=document["s3_key"]
-                )
-                logger.info(f"Deleted from S3: {document['s3_key']}")
-                print(f"DEBUG DELETE: S3 deletion successful")
-            except Exception as e:
-                logger.error(f"Failed to delete from S3: {str(e)}")
-                print(f"DEBUG DELETE: S3 deletion failed: {str(e)}")
-                # Continue with MongoDB deletion even if S3 deletion fails
+            # Delete from S3 if file exists and we have S3 client
+            if document.get("s3_key") and self.s3_client:
+                try:
+                    self.s3_client.delete_object(
+                        Bucket=self.s3_bucket,
+                        Key=document["s3_key"]
+                    )
+                    logger.info(f"Deleted document from S3: {document['s3_key']}")
+                except Exception as e:
+                    logger.error(f"Error deleting from S3: {str(e)}")
+                    # Continue with database deletion even if S3 delete fails
             
             # Delete from MongoDB
-            print(f"DEBUG DELETE: Deleting from MongoDB with query: {{'_id': ObjectId('{document_id}')}}") 
-            result = self.documents.delete_one({"_id": ObjectId(document_id)})
-            print(f"DEBUG DELETE: MongoDB deletion result: {result.deleted_count}")
+            result = self.documents.delete_one({"_id": doc_obj_id})
             
-            if result.deleted_count > 0:
-                logger.info(f"Document {document_id} deleted from MongoDB")
-                print(f"DEBUG DELETE: Document deleted successfully")
+            if result.deleted_count:
+                logger.info(f"Document deleted successfully: {document_id}")
                 return True
             else:
-                logger.warning(f"Failed to delete document {document_id} from MongoDB")
-                print(f"DEBUG DELETE: MongoDB deletion reported 0 documents deleted")
+                logger.warning(f"Document found but not deleted from database: {document_id}")
                 return False
-                
+            
         except Exception as e:
-            logger.error(f"Failed to delete document: {str(e)}")
-            print(f"DEBUG DELETE: Exception during deletion: {str(e)}")
-            import traceback
-            print(f"DEBUG DELETE: Traceback: {traceback.format_exc()}")
+            logger.error(f"Error deleting document: {str(e)}", exc_info=True)
             return False
     
     def generate_presigned_url(self, document_id: str, user_id: Optional[str] = None, expiration: int = 3600) -> Optional[str]:
@@ -374,3 +342,445 @@ class DocumentStorage:
         except Exception as e:
             logger.error(f"Failed to generate presigned URL: {str(e)}")
             return None
+    
+    def get_all_documents(self, admin_id: str, user_id: Optional[str] = None, 
+                         date_filter: str = "All Time", 
+                         status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get all documents with optional filtering (admin only)
+        
+        Args:
+            admin_id: ID of the admin user making the request
+            user_id: Optional user ID to filter documents by owner
+            date_filter: Date range filter (All Time, Today, Last 7 Days, etc.)
+            status_filter: Status filter (Analyzed, Pending Analysis, Error)
+            
+        Returns:
+            List of document records
+        """
+        try:
+            # Log the request
+            logger.info(f"Admin {admin_id} requesting documents with filters: user_id={user_id}, date={date_filter}, status={status_filter}")
+            
+            # Build query
+            query = {}
+            
+            # Filter by user if provided
+            if user_id:
+                logger.debug(f"Filtering by user_id: {user_id}")
+                query["user_id"] = ObjectId(user_id)
+            
+            # Apply date filter
+            if date_filter != "All Time":
+                now = datetime.utcnow()
+                if date_filter == "Today":
+                    start_date = datetime(now.year, now.month, now.day)
+                    query["uploaded_at"] = {"$gte": start_date}
+                elif date_filter == "Last 7 Days":
+                    start_date = now - timedelta(days=7)
+                    query["uploaded_at"] = {"$gte": start_date}
+                elif date_filter == "Last 30 Days":
+                    start_date = now - timedelta(days=30)
+                    query["uploaded_at"] = {"$gte": start_date}
+                elif date_filter == "Last 90 Days":
+                    start_date = now - timedelta(days=90)
+                    query["uploaded_at"] = {"$gte": start_date}
+                elif date_filter == "This Year":
+                    start_date = datetime(now.year, 1, 1)
+                    query["uploaded_at"] = {"$gte": start_date}
+                logger.debug(f"Date filter applied: {date_filter}, query: {query.get('uploaded_at')}")
+            
+            # Apply status filter
+            if status_filter:
+                if status_filter == "Analyzed":
+                    query["analysis_results"] = {"$exists": True, "$ne": None}
+                elif status_filter == "Pending Analysis":
+                    query["analysis_results"] = {"$exists": False}
+                elif status_filter == "Error":
+                    query["error"] = {"$exists": True, "$ne": None}
+                logger.debug(f"Status filter applied: {status_filter}")
+            
+            # Log the final query
+            logger.debug(f"Final document query: {query}")
+            
+            # Check if there are any documents at all first
+            total_docs = self.documents.count_documents({})
+            if total_docs == 0:
+                logger.info("No documents found in the database at all")
+                return []
+            
+            # Get documents with user information
+            pipeline = [
+                {"$match": query},
+                {
+                    "$lookup": {
+                        "from": "users",
+                        "localField": "user_id",
+                        "foreignField": "_id",
+                        "as": "user"
+                    }
+                },
+                {
+                    "$addFields": {
+                        "user_email": {"$arrayElemAt": ["$user.email", 0]},
+                        "user_fullname": {"$arrayElemAt": ["$user.fullname", 0]}
+                    }
+                },
+                {
+                    "$project": {
+                        "user": 0,  # Remove the full user array
+                        "analysis_results": 0  # Don't include full analysis results (could be large)
+                    }
+                },
+                {"$sort": {"uploaded_at": -1}}
+            ]
+            
+            documents = list(self.documents.aggregate(pipeline))
+            logger.info(f"Found {len(documents)} documents matching the query")
+            
+            # Process documents for display
+            for doc in documents:
+                # Convert ObjectId to string
+                doc["_id"] = str(doc["_id"])
+                doc["user_id"] = str(doc["user_id"])
+                
+                # Only add document_id alias if it doesn't already exist
+                if "document_id" not in doc:
+                    doc["document_id"] = doc["_id"]  # Add alias for consistency
+                
+                # Format file size
+                if "file_size" in doc and doc["file_size"]:
+                    size_bytes = doc["file_size"]
+                    if size_bytes < 1024:
+                        doc["file_size"] = f"{size_bytes} bytes"
+                    elif size_bytes < 1024 * 1024:
+                        doc["file_size"] = f"{size_bytes / 1024:.1f} KB"
+                    else:
+                        doc["file_size"] = f"{size_bytes / (1024 * 1024):.1f} MB"
+                
+                # Add status field
+                if "analysis_results" in doc and doc.get("analysis_results"):
+                    doc["status"] = "Analyzed"
+                elif "error" in doc and doc.get("error"):
+                    doc["status"] = "Error"
+                else:
+                    doc["status"] = "Pending Analysis"
+            
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error fetching all documents: {str(e)}", exc_info=True)
+            return []
+    
+    def reassign_document(self, document_id: str, admin_id: str, new_user_id: str) -> bool:
+        """
+        Reassign a document to a different user (admin only)
+        
+        Args:
+            document_id: ID of the document to reassign
+            admin_id: ID of the admin user making the request
+            new_user_id: ID of the user to reassign the document to
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Find document
+            document = self.documents.find_one({"_id": ObjectId(document_id)})
+            if not document:
+                logger.warning(f"Document not found: {document_id}")
+                return False
+            
+            # Update document owner
+            result = self.documents.update_one(
+                {"_id": ObjectId(document_id)},
+                {"$set": {
+                    "user_id": ObjectId(new_user_id),
+                    "reassigned_by": admin_id,
+                    "reassigned_at": datetime.utcnow()
+                }}
+            )
+            
+            if result.modified_count:
+                logger.info(f"Document {document_id} reassigned to user {new_user_id} by admin {admin_id}")
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error reassigning document: {str(e)}")
+            return False
+    
+    def get_admin_document_statistics(self) -> Dict[str, Any]:
+        """
+        Get document statistics for the admin dashboard
+        
+        Returns:
+            Dictionary containing document statistics
+        """
+        try:
+            stats = {}
+            
+            # Total documents
+            stats["document_count"] = self.documents.count_documents({})
+            
+            # Documents uploaded in the last 30 days
+            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+            stats["new_docs_30d"] = self.documents.count_documents({"uploaded_at": {"$gte": thirty_days_ago}})
+            
+            # Generate document upload trend data
+            pipeline = [
+                {
+                    "$match": {
+                        "uploaded_at": {"$gte": thirty_days_ago}
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": {
+                            "$dateToString": {"format": "%Y-%m-%d", "date": "$uploaded_at"}
+                        },
+                        "count": {"$sum": 1}
+                    }
+                },
+                {
+                    "$sort": {"_id": 1}
+                }
+            ]
+            
+            upload_trend = list(self.documents.aggregate(pipeline))
+            
+            # Convert to list of dates and counts
+            dates = []
+            counts = []
+            
+            # Ensure all dates in the last 30 days are represented
+            current_date = thirty_days_ago.date()
+            end_date = datetime.utcnow().date()
+            
+            # Create a map of date to count from the aggregation results
+            date_count_map = {item["_id"]: item["count"] for item in upload_trend}
+            
+            # Fill in all dates
+            while current_date <= end_date:
+                date_str = current_date.strftime("%Y-%m-%d")
+                dates.append(date_str)
+                counts.append(date_count_map.get(date_str, 0))
+                current_date += timedelta(days=1)
+            
+            # Create trend data
+            stats["document_upload_trend"] = {
+                "date": dates,
+                "count": counts
+            }
+            
+            # Get recent document activity - both uploads and analysis completions
+            # First, get uploads with user info
+            recent_uploads_pipeline = [
+                {"$sort": {"uploaded_at": -1}},
+                {"$limit": 20},
+                {
+                    "$lookup": {
+                        "from": "users",
+                        "localField": "user_id",
+                        "foreignField": "_id",
+                        "as": "user"
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 1,
+                        "original_filename": 1,
+                        "uploaded_at": 1,
+                        "user_email": {"$arrayElemAt": ["$user.email", 0]},
+                        "has_analysis": {
+                            "$cond": [
+                                {"$ifNull": ["$analysis_results", False]},
+                                True, 
+                                False
+                            ]
+                        },
+                        "processing_history": 1,
+                        "reassigned_at": 1,
+                        "reassigned_by": 1
+                    }
+                }
+            ]
+            
+            recent_uploads = list(self.documents.aggregate(recent_uploads_pipeline))
+            
+            # Format for activity feed
+            recent_activity = []
+            
+            # Add uploads
+            for doc in recent_uploads:
+                # Get user email - handle "Unknown" cases better
+                user_email = doc.get("user_email", "")
+                # If we couldn't get user email from the lookup, try to find the user directly
+                if not user_email and doc.get("user_id"):
+                    try:
+                        # Attempt to find user by ID
+                        user = self.db.users.find_one({"_id": ObjectId(doc.get("user_id"))})
+                        if user and user.get("email"):
+                            user_email = user.get("email")
+                        else:
+                            # Fall back to user ID if we can't get email
+                            user_email = f"User {str(doc.get('user_id'))[:8]}"
+                    except:
+                        # If lookup fails, use generic name with ID
+                        user_email = f"User {str(doc.get('user_id'))[:8]}"
+                
+                # Use "System" instead of "Unknown" for system-generated documents
+                if not user_email:
+                    user_email = "System" if "sample" in doc.get("original_filename", "").lower() else "Unknown"
+                
+                # Upload activity
+                recent_activity.append({
+                    "timestamp": doc.get("uploaded_at"),
+                    "user": user_email,
+                    "document": doc.get("original_filename", "Unknown"),
+                    "activity": "Upload"
+                })
+                
+                # Check for analysis completion
+                if doc.get("has_analysis") and doc.get("processing_history"):
+                    # Find the analysis completion event
+                    analysis_events = [
+                        event for event in doc.get("processing_history", [])
+                        if event.get("action") == "analysis" and event.get("status") == "success"
+                    ]
+                    
+                    if analysis_events:
+                        # Get the most recent analysis completion
+                        analysis_event = sorted(
+                            analysis_events, 
+                            key=lambda x: x.get("timestamp", datetime.min),
+                            reverse=True
+                        )[0]
+                        
+                        recent_activity.append({
+                            "timestamp": analysis_event.get("timestamp"),
+                            "user": user_email,  # Use the same user email for consistency
+                            "document": doc.get("original_filename", "Unknown"),
+                            "activity": "Analysis"
+                        })
+                
+                # Check for document reassignment
+                if doc.get("reassigned_at"):
+                    # Try to get the admin who did the reassignment
+                    admin_email = "Admin"
+                    if doc.get("reassigned_by"):
+                        try:
+                            admin = self.db.users.find_one({"_id": ObjectId(doc.get("reassigned_by"))})
+                            if admin and admin.get("email"):
+                                admin_email = admin.get("email")
+                        except:
+                            pass
+                    
+                    recent_activity.append({
+                        "timestamp": doc.get("reassigned_at"),
+                        "user": admin_email,
+                        "document": doc.get("original_filename", "Unknown"),
+                        "activity": "Reassignment"
+                    })
+            
+            # Sort by timestamp and limit to 10 most recent activities
+            stats["recent_document_activity"] = sorted(
+                recent_activity,
+                key=lambda x: x.get("timestamp", datetime.min),
+                reverse=True
+            )[:10]
+            
+            return stats
+        except Exception as e:
+            logger.error(f"Error getting document statistics: {str(e)}")
+            return {}
+    
+    def create_sample_document(self, user_id: str) -> bool:
+        """
+        Create a sample document for testing purposes
+        
+        Args:
+            user_id: ID of the user to assign the document to
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Create a sample document entry
+            current_time = datetime.utcnow()
+            
+            # Create a sample document record - being careful to not use any duplicate field names
+            document_record = {
+                "user_id": ObjectId(user_id),
+                "original_filename": "Sample_RFP_Document.pdf",
+                "s3_bucket": self.s3_bucket,
+                "s3_key": f"sample/{user_id}/Sample_RFP_Document.pdf",
+                "uploaded_at": current_time,
+                "file_size": 1024 * 500,  # 500 KB
+                "file_type": "application/pdf",
+                "mime_type": "application/pdf",
+                "page_count": 15,
+                "status": "processed",  # So it shows up as "Analyzed" in the UI
+                "processing_history": [
+                    {
+                        "action": "upload",
+                        "timestamp": current_time,
+                        "status": "success",
+                        "details": "Sample document created for testing"
+                    },
+                    {
+                        "action": "analysis",
+                        "timestamp": current_time + timedelta(minutes=2),
+                        "status": "success",
+                        "details": "Sample analysis completed"
+                    }
+                ],
+                "analysis_results": {
+                    "summary": "This is a sample RFP document created for testing purposes. It contains simulated information about a fictional project.",
+                    "requirements": [
+                        {
+                            "id": "REQ-001",
+                            "text": "The system must be accessible through a web browser.",
+                            "section": "Technical Requirements",
+                            "page": 3,
+                            "confidence": 0.95
+                        },
+                        {
+                            "id": "REQ-002",
+                            "text": "The solution must support multi-factor authentication.",
+                            "section": "Security Requirements",
+                            "page": 5,
+                            "confidence": 0.92
+                        },
+                        {
+                            "id": "REQ-003",
+                            "text": "The system must be available 99.9% of the time.",
+                            "section": "SLA Requirements",
+                            "page": 8,
+                            "confidence": 0.89
+                        }
+                    ],
+                    "metadata": {
+                        "issuing_organization": "Sample Company Inc.",
+                        "issue_date": (current_time - timedelta(days=10)).strftime("%Y-%m-%d"),
+                        "due_date": (current_time + timedelta(days=20)).strftime("%Y-%m-%d"),
+                        "project_value": "$500,000 - $750,000",
+                        "project_timeline": "6 months"
+                    }
+                }
+            }
+            
+            # Insert the document record
+            result = self.documents.insert_one(document_record)
+            
+            # Log the result
+            if result.inserted_id:
+                logger.info(f"Created sample document with ID {result.inserted_id} for user {user_id}")
+                return True
+            else:
+                logger.error("Failed to insert sample document record")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error creating sample document: {str(e)}", exc_info=True)
+            return False

@@ -30,6 +30,9 @@ from mongodb_connection import get_mongodb_connection
 from auth import UserAuth
 import auth_ui
 
+# Import admin panel
+import admin_panel
+
 # Load environment variables
 load_dotenv()
 
@@ -229,17 +232,52 @@ def load_css():
     
     .main {{
         color: {colors["text"]};
+        background-color: #f8f9fa;
     }}
     
     /* Sidebar */
     [data-testid="stSidebar"] {{
         background-color: {colors["sidebar_bg"]};
+        border-right: 1px solid {colors["border"]};
+    }}
+    
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+    }}
+    
+    /* Improve sidebar section headers */
+    .sidebar-section-header {{
+        color: {colors["text"]};
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid {colors["border"]};
     }}
     
     /* Typography */
     h1, h2, h3, h4, h5, h6 {{
         color: {colors["text"]};
         font-weight: 600;
+    }}
+    
+    h1 {{
+        font-size: 2.2rem;
+        margin-bottom: 1.5rem;
+        font-weight: 700;
+    }}
+    
+    h2 {{
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }}
+    
+    h3 {{
+        font-size: 1.4rem;
+        margin-bottom: 0.8rem;
     }}
     
     p, li, span, label {{
@@ -249,16 +287,56 @@ def load_css():
     /* Card Styling */
     .enterprise-card {{
         background-color: {colors["card_bg"]};
-        border-radius: 0.5rem;
+        border-radius: 10px;
         padding: 1.5rem;
         margin: 1rem 0;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         border: 1px solid {colors["border"]};
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }}
     
     .enterprise-card:hover {{
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.05);
+    }}
+    
+    /* Modern feature card */
+    .feature-card {{
+        background-color: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        height: 100%;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid #f0f0f0;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
+    }}
+    
+    .feature-card:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.08);
+    }}
+    
+    .feature-icon {{
+        font-size: 2.2rem;
+        margin-bottom: 1rem;
+        color: {colors["primary"]};
+    }}
+    
+    /* Button improvements */
+    [data-testid="stButton"] button {{
+        font-weight: 500;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        transition: all 0.3s ease;
+    }}
+    
+    [data-testid="stButton"] button:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+    }}
+    
+    /* Checkbox improvements */
+    [data-testid="stCheckbox"] {{
+        margin-bottom: 1rem;
     }}
     
     /* Headers */
@@ -280,453 +358,47 @@ def load_css():
         margin-right: 0.75rem;
     }}
     
+    /* File uploader enhancements */
+    [data-testid="stFileUploader"] {{
+        background-color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 2px dashed {colors["primary"]}40;
+    }}
+    
+    [data-testid="stFileUploader"]:hover {{
+        border-color: {colors["primary"]};
+    }}
+    
+    [data-testid="stFileUploader"] button {{
+        background-color: {colors["primary"]};
+        color: white;
+        font-weight: 500;
+    }}
+    
     /* Dashboard Statistics */
     .stat-container {{
         display: flex;
         flex-wrap: wrap;
-        gap: 1rem;
+        gap: 1.2rem;
         justify-content: space-between;
         margin-bottom: 1.5rem;
     }}
     
     .stat-card {{
-        background-color: {colors["card_bg"]};
-        border-radius: 0.5rem;
-        padding: 1.25rem;
-        flex: 1;
-        min-width: calc(25% - 1rem);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border-left: 4px solid {colors["primary"]};
-    }}
-    
-    .stat-value {{
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: {colors["primary"]};
-        margin-bottom: 0.25rem;
-    }}
-    
-    .stat-label {{
-        font-size: 0.875rem;
-        color: {colors["text_muted"]};
-    }}
-    
-    /* Section Headers */
-    .section-header {{
-        color: {colors["primary"]};
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin: 1.5rem 0 1rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid {colors["border"]};
-        display: flex;
-        align-items: center;
-    }}
-    
-    .section-header svg {{
-        margin-right: 0.5rem;
-    }}
-    
-    /* Information Panels */
-    .info-panel {{
-        background-color: {colors["card_bg"]};
-        border-radius: 0.5rem;
+        background-color: white;
+        border-radius: 12px;
         padding: 1.5rem;
-        margin: 1rem 0;
-        border-top: 4px solid {colors["primary"]};
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }}
-    
-    /* Requirement Cards */
-    .req-category {{
-        font-weight: 600;
-        font-size: 1rem;
-        color: {colors["primary"]};
-        margin-top: 1rem;
-        background-color: {colors["background"]};
-        padding: 0.5rem 0.75rem;
-        border-radius: 0.25rem;
-    }}
-    
-    .req-item {{
-        padding: 0.75rem;
-        border-left: 3px solid {colors["secondary"]};
-        margin: 0.5rem 0;
-        background-color: {colors["background"]};
-        border-radius: 0 0.25rem 0.25rem 0;
-    }}
-    
-    .page-badge {{
-        display: inline-block;
-        background-color: {colors["primary_light"]};
-        color: white;
-        padding: 0.125rem 0.5rem;
-        border-radius: 1rem;
-        font-size: 0.75rem;
-        margin-left: 0.5rem;
-        vertical-align: middle;
-    }}
-    
-    /* Button Styling */
-    .stButton>button {{
-        background-color: {colors["primary"]};
-        color: white;
-        border-radius: 0.375rem;
-        border: none;
-        padding: 0.625rem 1.25rem;
-        font-weight: 500;
-        transition: all 0.2s;
-    }}
-    
-    .stButton>button:hover {{
-        background-color: {colors["primary_light"]};
-        transform: translateY(-1px);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }}
-    
-    /* File Uploader */
-    .stFileUploader {{
-        border: 2px dashed {colors["primary"]};
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-        background-color: {colors["card_bg"]};
-    }}
-    
-    .upload-container {{
-        text-align: center;
-        padding: 2rem;
-        background-color: {colors["card_bg"]};
-        border-radius: 0.5rem;
-        border: 2px dashed {colors["border"]};
-    }}
-    
-    .upload-icon {{
-        font-size: 3rem;
-        color: {colors["primary"]};
-        margin-bottom: 1rem;
-    }}
-    
-    /* Alerts and Messages */
-    .alert {{
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 0.5rem;
-        border-left: 4px solid;
-    }}
-    
-    .alert-info {{
-        background-color: rgba(59, 130, 246, 0.1);
-        border-left-color: {colors["info"]};
-    }}
-    
-    .alert-success {{
-        background-color: rgba(16, 185, 129, 0.1);
-        border-left-color: {colors["success"]};
-    }}
-    
-    .alert-warning {{
-        background-color: rgba(245, 158, 11, 0.1);
-        border-left-color: {colors["warning"]};
-    }}
-    
-    .alert-danger {{
-        background-color: rgba(239, 68, 68, 0.1);
-        border-left-color: {colors["danger"]};
-    }}
-    
-    /* Chat Messages */
-    .chat-container {{
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        margin: 1.5rem 0;
-        max-width: 100%;
-    }}
-    
-    .chat-message {{
-        display: flex;
-        padding: 0;
-        border-radius: 0.5rem;
-    }}
-    
-    .user-message {{
-        justify-content: flex-end;
-    }}
-    
-    .message-content {{
-        padding: 1rem;
-        border-radius: 0.5rem;
-        max-width: 80%;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    }}
-    
-    .user-message .message-content {{
-        background-color: {colors["user_msg_bg"]};
-        color: {colors["text"] if colors["user_msg_bg"] == "#DBEAFE" else "white"};
-        border-top-right-radius: 0;
-    }}
-    
-    .assistant-message .message-content {{
-        background-color: {colors["bot_msg_bg"]};
-        color: {colors["text"]};
-        border-top-left-radius: 0;
-    }}
-    
-    .message-avatar {{
-        width: 2.5rem;
-        height: 2.5rem;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 0.75rem;
-        font-weight: bold;
-        font-size: 1rem;
-    }}
-    
-    .user-avatar {{
-        background-color: {colors["primary"]};
-        color: white;
-    }}
-    
-    .assistant-avatar {{
-        background-color: {colors["secondary"]};
-        color: white;
-    }}
-    
-    /* Form Elements */
-    .stTextInput>div>div>input {{
-        border-radius: 0.5rem !important;
-        border: 1px solid {colors["border"]} !important;
-        padding: 0.75rem 1rem !important;
-        background-color: {colors["card_bg"]} !important;
-        color: {colors["text"]} !important;
-    }}
-    
-    .stTextInput>div>div>input:focus {{
-        border-color: {colors["primary"]} !important;
-        box-shadow: 0 0 0 2px {colors["primary_light"]}40 !important;
-    }}
-    
-    /* Expander Styling */
-    .streamlit-expanderHeader {{
-        background-color: {colors["card_bg"]};
-        border-radius: 0.5rem;
-        padding: 0.75rem 1rem !important;
-        font-weight: 500;
-        color: {colors["text"]} !important;
-        border: 1px solid {colors["border"]};
-    }}
-    
-    .streamlit-expanderContent {{
-        background-color: {colors["card_bg"]};
-        border-radius: 0 0 0.5rem 0.5rem;
-        padding: 1.5rem !important;
-        border: 1px solid {colors["border"]};
-        border-top: none;
-    }}
-    
-    /* Loading Animation */
-    .stSpinner>div {{
-        border-top-color: {colors["primary"]} !important;
-    }}
-    
-    /* Status Badge */
-    .status-badge {{
-        display: inline-flex;
-        align-items: center;
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        margin-left: 0.75rem;
-    }}
-    
-    .status-badge.active {{
-        background-color: {colors["success"]}20;
-        color: {colors["success"]};
-    }}
-    
-    .status-badge.inactive {{
-        background-color: {colors["text_muted"]}20;
-        color: {colors["text_muted"]};
-    }}
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 0.5rem;
-    }}
-    
-    .stTabs [data-baseweb="tab"] {{
-        background-color: {colors["card_bg"]} !important;
-        border-radius: 0.5rem 0.5rem 0 0;
-        padding: 0.75rem 1rem;
-        color: {colors["text_muted"]};
-        border: 1px solid {colors["border"]};
-        border-bottom: none;
-    }}
-    
-    .stTabs [aria-selected="true"] {{
-        color: {colors["primary"]} !important;
-        background-color: {colors["card_bg"]} !important;
-        border-bottom: 2px solid {colors["primary"]} !important;
-    }}
-    
-    /* Tooltip */
-    .tooltip {{
-        position: relative;
-        display: inline-block;
-        cursor: pointer;
-    }}
-    
-    .tooltip .tooltiptext {{
-        visibility: hidden;
-        width: 200px;
-        background-color: {colors["card_bg"]};
-        color: {colors["text"]};
-        text-align: center;
-        border-radius: 6px;
-        padding: 0.5rem;
-        position: absolute;
-        z-index: 1;
-        bottom: 125%;
-        left: 50%;
-        transform: translateX(-50%);
-        opacity: 0;
-        transition: opacity 0.3s;
-        border: 1px solid {colors["border"]};
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }}
-    
-    .tooltip:hover .tooltiptext {{
-        visibility: visible;
-        opacity: 1;
-    }}
-    
-    /* Date and progress indicators */
-    .date-item {{
-        display: flex;
-        align-items: center;
-        padding: 0.625rem;
-        margin: 0.5rem 0;
-        background-color: {colors["background"]};
-        border-radius: 0.375rem;
-        border-left: 3px solid {colors["info"]};
-    }}
-    
-    .date-event {{
         flex: 1;
-        font-weight: 500;
+        min-width: calc(25% - 1.5rem);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        border: 1px solid #f0f0f0;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }}
     
-    .date-value {{
-        font-weight: 600;
-        padding: 0.25rem 0.5rem;
-        background-color: {colors["primary"]}20;
-        border-radius: 0.25rem;
-        color: {colors["primary"]};
-    }}
-    
-    /* Progress bar */
-    .progress-container {{
-        width: 100%;
-        background-color: {colors["border"]};
-        border-radius: 999px;
-        height: 0.5rem;
-        margin: 1rem 0;
-    }}
-    
-    .progress-bar {{
-        height: 0.5rem;
-        border-radius: 999px;
-        background-color: {colors["primary"]};
-    }}
-    
-    /* Chat input container */
-    .chat-input-container {{
-        display: flex;
-        margin-top: 1rem;
-        background-color: {colors["card_bg"]};
-        border-radius: 0.5rem;
-        padding: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }}
-    
-    /* Improved sidebar hierarchy */
-    .sidebar-section {{
-        margin-bottom: 2rem;
-    }}
-    
-    .sidebar-section-header {{
-        font-weight: 600;
-        font-size: 1rem;
-        color: {colors["text"]};
-        margin-bottom: 0.75rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid {colors["border"]};
-    }}
-    
-    /* Main app header with logo */
-    .app-header {{
-        display: flex;
-        align-items: center;
-        padding-bottom: 1rem;
-        margin-bottom: 1.5rem;
-        border-bottom: 1px solid {colors["border"]};
-        position: relative;
-    }}
-    
-    .app-logo {{
-        width: 40px;
-        height: 40px;
-        margin-right: 1rem;
-        color: {colors["primary"]};
-    }}
-    
-    .app-title {{
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: {colors["text"]};
-        margin: 0;
-    }}
-    
-    .app-badge {{
-        background-color: #10B981;
-        color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        margin-left: 1rem;
-    }}
-    
-    /* User account button styling */
-    button[data-testid="user_menu_button"] {{
-        background-color: {colors["primary"]};
-        color: white;
-        font-weight: bold;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        padding: 0px;
-        border: 2px solid white;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-    
-    button[data-testid="sign_out_button"] {{
-        background-color: {colors["background"]};
-        color: {colors["text"]};
-        border: 1px solid {colors["border"]};
-        font-size: 0.875rem;
-    }}
-    
-    button[data-testid="sign_out_button"]:hover {{
-        background-color: {colors["danger"]}10;
-        color: {colors["danger"]};
-        border-color: {colors["danger"]}30;
+    .stat-card:hover {{
+        transform: translateY(-3px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
     }}
     </style>
     """
@@ -1306,51 +978,192 @@ def display_rfp_data(rfp_data: Dict[str, Any]):
     with tab5:
         document_management_ui.render_document_management(document_storage, colors)
 
+def render_app_header():
+    """Render the application header with logo"""
+    colors = get_colors()
+    
+    # Create header container
+    header_container = st.container()
+    
+    with header_container:
+        # Add a subtle border at the bottom of the header
+        st.markdown(f"""
+        <div style="margin: -2rem -4rem 2rem -4rem; padding: 1.5rem 4rem; 
+                 background: linear-gradient(to right, {colors['card_bg']}, white); 
+                 border-bottom: 1px solid {colors['border']};">
+        """, unsafe_allow_html=True)
+        
+        # Use columns for header - main title and user info
+        header_col1, header_col2 = st.columns([9, 1])
+        
+        with header_col1:
+            # Main app title with modern logo
+            st.markdown(f"""
+            <div style="display: flex; align-items: center;">
+                <div style="background: linear-gradient(135deg, {colors['primary']}, {colors['primary']}80); 
+                            width: 48px; height: 48px; border-radius: 12px; display: flex; 
+                            align-items: center; justify-content: center; margin-right: 16px;
+                            box-shadow: 0 4px 12px {colors['primary']}40;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="28" height="28">
+                        <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700; color: {colors['text']}; 
+                              letter-spacing: -0.5px; line-height: 1.2;">
+                        Enterprise RFP Analyzer
+                    </h1>
+                    <div style="display: flex; align-items: center; margin-top: 3px;">
+                        <span style="background-color: #10B981; color: white; padding: 2px 10px; 
+                              border-radius: 20px; font-size: 0.75rem; font-weight: 500;
+                              display: inline-flex; align-items: center;">
+                            <span style="width: 6px; height: 6px; background-color: white; 
+                                   border-radius: 50%; margin-right: 5px; display: inline-block;"></span>
+                            Active
+                        </span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Check if user is admin to show the admin panel button in the header
+        # Add admin button to header for admin users
+        is_admin = "user" in st.session_state and st.session_state.user and st.session_state.user.get('role') == 'admin'
+        if is_admin:
+            with header_col2:
+                # Get current page to highlight the active page
+                current_page = st.session_state.get("page", "")
+                admin_btn_style = "background-color: #4CAF50; color: white;" if current_page == "admin" else "background-color: #f1f3f4; color: #333;"
+                
+                # Add the admin button in the header column with better styling
+                st.markdown(f"""
+                <div style="text-align: right;">
+                    <button 
+                        onclick="parent.window.document.querySelector('button[key=\"admin_panel_button\"]').click();" 
+                        style="cursor: pointer; border: none; border-radius: 6px; padding: 6px 14px; 
+                               font-size: 0.8rem; {admin_btn_style}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        Admin Dashboard
+                    </button>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # Add the closing div for the header container
+        st.markdown("</div>", unsafe_allow_html=True)
+
 def show_no_rfp_screen():
     """Display welcome screen when no RFP is loaded"""
     colors = get_colors()
     
-    # Main welcome container
+    # Main welcome container with modern design
     st.markdown(f"""
-    <div class="enterprise-card">
-        <h2 style="text-align: center; margin-bottom: 1.5rem;">Welcome to the Enterprise RFP Analyzer</h2>
-        <p style="text-align: center; margin-bottom: 2rem;">
+    <div class="enterprise-card" style="text-align: center; padding: 2.5rem; margin-bottom: 2rem; 
+        background: linear-gradient(150deg, {colors['card_bg']}, {colors['sidebar_bg']}); border: none;">
+        <h1 style="font-size: 2.5rem; margin-bottom: 1rem; color: {colors['primary']};">
+            Welcome to the Enterprise RFP Analyzer
+        </h1>
+        <p style="font-size: 1.1rem; max-width: 800px; margin: 0 auto 1.5rem auto; color: {colors['text']};">
             Upload an RFP document to begin your analysis. Our AI-powered system will extract key information
             and help you understand the requirements, tasks, and timeline.
         </p>
+        <div style="width: 60px; height: 6px; background-color: {colors['primary']}; margin: 0 auto;"></div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Upload container - created separately to avoid rendering issues
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Create main content area with 2 columns
+    col1, col2 = st.columns([3, 2], gap="large")
+    
+    # Features section in column 1 with new grid layout
+    with col1:
+        st.markdown(f"""
+        <div class="enterprise-card" style="border: none; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); 
+                        padding: 2rem;">
+            <h2 style="color: {colors['text']}; margin-bottom: 1.5rem; font-size: 1.8rem;">Key Features</h2>
+        """, unsafe_allow_html=True)
+        
+        # Create a grid of features
+        features = [
+            {
+                "icon": "📋",
+                "title": "Extract Requirements",
+                "description": "Automatically identify and extract key requirements from RFP documents"
+            },
+            {
+                "icon": "✅",
+                "title": "Task Identification",
+                "description": "Identify critical tasks and deliverables for your response planning"
+            },
+            {
+                "icon": "📅",
+                "title": "Timeline Tracking",
+                "description": "Track important dates and deadlines to stay on schedule"
+            },
+            {
+                "icon": "💬",
+                "title": "AI Assistant",
+                "description": "Ask questions about the RFP in natural language and get instant answers"
+            },
+            {
+                "icon": "🔍",
+                "title": "Response Strategy",
+                "description": "Get AI-powered insights to help craft a winning proposal"
+            },
+            {
+                "icon": "📊",
+                "title": "Analysis Dashboard",
+                "description": "View comprehensive analysis results in an intuitive dashboard"
+            }
+        ]
+        
+        # Create 3 columns for features
+        feature_cols = st.columns(3)
+        
+        # Add features to the grid with fixed height to ensure consistency
+        for i, feature in enumerate(features):
+            with feature_cols[i % 3]:
+                st.markdown(f"""
+                <div style="padding: 1.25rem; margin-bottom: 1.25rem; background-color: white; 
+                            border-radius: 8px; height: 250px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                            display: flex; flex-direction: column;">
+                    <div style="font-size: 2rem; margin-bottom: 0.75rem;">{feature['icon']}</div>
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.75rem; color: {colors['primary']};">
+                        {feature['title']}
+                    </h3>
+                    <p style="font-size: 0.9rem; color: {colors['text_muted']}; line-height: 1.5; flex-grow: 1;">
+                        {feature['description']}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Upload container with more prominent design in column 2
     with col2:
         st.markdown(f"""
-        <div style="text-align: center; padding: 2rem; background-color: {colors['card_bg']}; 
-                    border-radius: 0.5rem; border: 2px dashed {colors['border']}; margin: 1rem 0;">
-            <div style="font-size: 3rem; color: {colors['primary']}; margin-bottom: 1rem;">
+        <div style="background: linear-gradient(145deg, {colors['primary']}15, {colors['primary']}25); 
+                    border-radius: 12px; padding: 2rem; text-align: center; height: 100%;
+                    border: 2px dashed {colors['primary']}70; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <div style="background-color: white; width: 80px; height: 80px; border-radius: 50%; 
+                        margin: 0 auto 1.5rem auto; display: flex; align-items: center; 
+                        justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" 
-                     stroke="currentColor" width="36" height="36">
+                     stroke="{colors['primary']}" width="40" height="40">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                           d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
             </div>
-            <p>Please upload your RFP document from the sidebar to get started.</p>
+            <h2 style="font-size: 1.4rem; margin-bottom: 1rem; color: {colors['text']};">
+                Upload Your RFP Document
+            </h2>
+            <p style="margin-bottom: 1.5rem; color: {colors['text_muted']}; font-size: 1rem;">
+                Use the document uploader in the sidebar to upload your RFP in PDF format
+            </p>
+            <div style="background-color: {colors['primary']}; color: white; padding: 0.75rem 1.5rem;
+                        border-radius: 8px; display: inline-block; font-weight: 500; margin-top: 1rem;
+                        box-shadow: 0 4px 12px {colors['primary']}50;">
+                <span style="font-size: 1.2rem;">←</span> Upload from Sidebar
+            </div>
         </div>
         """, unsafe_allow_html=True)
-    
-    # Features section
-    st.markdown(f"""
-    <div class="enterprise-card" style="margin-top: 1.5rem;">
-        <h3 style="color: {colors['primary']}; margin-bottom: 1rem;">Key Features</h3>
-        <ul>
-            <li>Extract key requirements automatically</li>
-            <li>Identify critical tasks and deliverables</li>
-            <li>Track important dates and deadlines</li>
-            <li>Ask questions about the RFP in natural language</li>
-            <li>Get AI-powered insights to help with your response strategy</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
 
 def process_pdf_locally(pdf_path, selected_sections):
     """Process PDF locally when Lambda function is unavailable"""
@@ -1553,37 +1366,9 @@ def display_chat_interface():
             st.session_state.messages.append({"role": "assistant", "content": response})
             
             # Force refresh
-            st.rerun()
+            st.experimental_rerun()
     else:
         st.warning("Please enter your OpenAI API key in the sidebar to enable chat functionality.")
-
-def render_app_header():
-    """Render the application header with logo"""
-    colors = get_colors()
-    
-    # Create header container
-    header_container = st.container()
-    
-    with header_container:
-        # Use columns for header
-        header_col1, header_col2 = st.columns([9, 1])
-        
-        with header_col1:
-            # Main app title with logo
-            st.markdown(f"""
-            <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                <div style="color: {colors['primary']}; margin-right: 12px;">
-                    {st.session_state.logo_svg if st.session_state.logo_svg else '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="40" height="40">
-                        <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                    </svg>'''}
-                </div>
-                <h1 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: {colors['text']};">Enterprise RFP Analyzer</h1>
-                <span style="background-color: #10B981; color: white; padding: 3px 12px; 
-                      border-radius: 9999px; font-size: 0.8rem; font-weight: 500; margin-left: 1rem;">
-                    Active
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
 
 def main_content():
     """Main application content when authenticated"""
@@ -1594,9 +1379,28 @@ def main_content():
     # Render the app header
     render_app_header()
     
+    # Check if user is admin and add admin panel tab if so
+    is_admin = "user" in st.session_state and st.session_state.user and st.session_state.user.get('role') == 'admin'
+    
     # Sidebar for configuration and PDF upload
     with st.sidebar:
-        # Improved sidebar organization with section headers        
+        # Improved sidebar organization with section headers
+        
+        # Add admin section for admin users
+        if is_admin:
+            st.markdown(f"""
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">Admin Controls</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button("🔐 Admin Panel", key="admin_panel_button", use_container_width=True):
+                st.session_state.page = "admin"
+                # Force a rerun to refresh the page
+                st.experimental_rerun()
+                
+            st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+        
         # OpenAI API Settings Section
         st.markdown(f"""
         <div class="sidebar-section">
@@ -1664,8 +1468,25 @@ def main_content():
         # Set default to "all" for sections to extract (no UI shown to user)
         selected_sections = ["all"]
         
-        uploaded_file = st.file_uploader("Upload RFP Document", type=["pdf"], accept_multiple_files=False, 
+        # Enhanced uploader with better UI
+        st.markdown(f"""
+        <div style="margin-bottom: 10px; text-align: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="{colors['primary']}">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader("", type=["pdf"], accept_multiple_files=False, 
                                          key=f"uploader_{st.session_state.upload_id}")
+                                         
+        # Add helpful instructions below the uploader
+        st.markdown(f"""
+        <div style="font-size: 0.85rem; color: {colors['text_muted']}; text-align: center; margin-top: 8px;">
+            Limit 200MB per file • PDF
+        </div>
+        """, unsafe_allow_html=True)
         
         if uploaded_file:
             # Add warning about chat history being cleared
@@ -1765,10 +1586,16 @@ You can now ask me questions about this RFP, or explore the analysis using the t
                             document_storage.update_analysis_results(document_id, result)
                             st.session_state.current_document_id = document_id
                         
-                        st.rerun()
+                        st.experimental_rerun()
     
+    # Show admin panel if admin user and on admin page
+    if is_admin and st.session_state.page == "admin":
+        # Debug information
+        st.session_state.debug_admin_view = True
+        # Render the admin panel
+        admin_panel.render_admin_panel(auth_instance, document_storage, colors)
     # Show current RFP info if available, otherwise show welcome screen
-    if st.session_state.current_rfp:
+    elif st.session_state.current_rfp:
         # Use columns for document info bar
         doc_col1, doc_col2 = st.columns([4, 1])
         with doc_col1:

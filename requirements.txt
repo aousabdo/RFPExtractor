@@ -15,3 +15,5 @@ passlib>=1.7.4
 cryptography>=41.0.0
 requests_aws4auth
 reportlab
+pandas>=2.0.0
+plotly>=5.13.0

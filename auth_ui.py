@@ -4,12 +4,29 @@ import logging
 from typing import Dict, Any, Optional, Callable
 import os
 import json
+from datetime import datetime
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 def init_auth_session_state():
     """Initialize authentication-related session state variables"""
+    # First, check if any document or analysis data exists without a user
+    # This would indicate a session state issue we should clean up
+    if "user" not in st.session_state or st.session_state.user is None:
+        # Keys that shouldn't exist when there's no user logged in
+        document_keys = [
+            'document_id', 'current_document', 'analysis_results', 
+            'requirements', 'tasks', 'key_dates', 'chat_history'
+        ]
+        
+        # Check if any of these exist and clear them
+        for key in document_keys:
+            if key in st.session_state:
+                del st.session_state[key]
+                logger.warning(f"Cleared leftover session key: {key}")
+    
+    # Initialize basic auth variables
     if "user" not in st.session_state:
         st.session_state.user = None
     if "auth_token" not in st.session_state:
@@ -177,11 +194,6 @@ def login_form(auth_instance, colors: Dict[str, str]):
                         on_click=lambda: set_page("register"),
                         use_container_width=True
                     )
-                # with col1:
-                #     submitted = st.form_submit_button(
-                #         "Login",
-                #         use_container_width=True
-                #     )
                 
                 if submitted:
                     if not email or not password:
@@ -189,21 +201,17 @@ def login_form(auth_instance, colors: Dict[str, str]):
                         st.session_state.auth_status = "error"
                         return
                     
-                    # Attempt login
+                    # Attempt login using our enhanced login_user function
                     try:
-                        token = auth_instance.login(email, password)
-                        if token:
-                            st.session_state.auth_token = token
-                            user_info = auth_instance.validate_session(token)
-                            if user_info:
-                                st.session_state.user = user_info
-                                st.session_state.auth_message = f"Welcome back, {user_info['fullname']}!"
-                                st.session_state.auth_status = "success"
-                                st.session_state.page = "main"
-                                st.rerun()  # Refresh to show authenticated content
-                            else:
-                                st.session_state.auth_message = "Authentication error"
-                                st.session_state.auth_status = "error"
+                        # First clear session state to prevent data leakage
+                        success = login_user(email, password, auth_instance)
+                        
+                        if success:
+                            # Set additional session state variables
+                            st.session_state.auth_message = f"Welcome back, {st.session_state.user['fullname']}!"
+                            st.session_state.auth_status = "success"
+                            st.session_state.page = "main"
+                            st.experimental_rerun()  # Refresh to show authenticated content
                         else:
                             st.session_state.auth_message = "Invalid email or password"
                             st.session_state.auth_status = "error"
@@ -487,6 +495,10 @@ def logout(auth_instance):
     if auth_instance and st.session_state.auth_token:
         auth_instance.logout(st.session_state.auth_token)
     
+    # Use our more thorough logout function instead
+    logout_user()
+    
+    # These will be set by logout_user, but we set them again just in case
     st.session_state.user = None
     st.session_state.auth_token = None
     st.session_state.auth_message = "You have been logged out"
@@ -548,9 +560,34 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
         if st.session_state.page == "profile":
             # Render the user profile page
             user_profile(auth_instance, colors)
+        elif st.session_state.page == "admin":
+            # Add a simple user display in the top right
+            if st.session_state.user:
+                user_fullname = st.session_state.user.get('fullname', 'User')
+                user_initial = user_fullname[0].upper()
+                
+                # Create header with user info
+                cols = st.columns([15, 3])
+                with cols[1]:
+                    user_menu = st.container()
+                    user_menu_col1, user_menu_col2 = st.columns([1, 3])
+                    with user_menu_col1:
+                        if st.button(f"{user_initial}", key="user_menu_button", 
+                                    help="Account Settings",
+                                    use_container_width=True):
+                            st.session_state.page = "profile"
+                            st.experimental_rerun()
+                    with user_menu_col2:
+                        if st.button("Sign Out", key="sign_out_button", use_container_width=True):
+                            logout(auth_instance)
+                            st.experimental_rerun()
+                            
+            # Render the main application content (will show admin panel based on session state)
+            page_content_function()
         else:
-            # Set page to main if not on profile
-            st.session_state.page = "main"
+            # On main page or others
+            if st.session_state.page != "main":
+                st.session_state.page = "main"
             
             # Add a simple user display in the top right
             if st.session_state.user:
@@ -567,11 +604,11 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
                                     help="Account Settings",
                                     use_container_width=True):
                             st.session_state.page = "profile"
-                            st.rerun()
+                            st.experimental_rerun()
                     with user_menu_col2:
                         if st.button("Sign Out", key="sign_out_button", use_container_width=True):
                             logout(auth_instance)
-                            st.rerun()
+                            st.experimental_rerun()
             
             # Render the main application content
             page_content_function()
@@ -581,3 +618,94 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
             register_form(auth_instance, colors)
         else:  # Default to login
             login_form(auth_instance, colors)
+
+def logout_user():
+    """Log out the current user by clearing session state"""
+    # Clear ALL session state to prevent data leakage between users
+    # Keep only a few system keys 
+    keys_to_keep = ['page', 'theme']
+    
+    # Store keys we want to keep
+    preserved_values = {key: st.session_state[key] for key in keys_to_keep if key in st.session_state}
+    
+    # Clear entire session state
+    for key in list(st.session_state.keys()):
+        if key not in keys_to_keep:  # Don't clear these yet
+            del st.session_state[key]
+    
+    # Log the logout
+    logging.info("User logged out, session cleared")
+    
+    # Restore keys we wanted to keep
+    for key, value in preserved_values.items():
+        st.session_state[key] = value
+    
+    # Reset the page to home
+    st.session_state.page = None
+    
+    # Set a logout message
+    st.session_state.logout_message = "You have been logged out successfully."
+    
+    # Perform a rerun to refresh the page
+    st.experimental_rerun()
+
+def login_user(email, password, auth_instance):
+    """
+    Attempt to log in a user with email and password
+    
+    Args:
+        email: User email
+        password: User password
+        auth_instance: UserAuth instance for authentication
+        
+    Returns:
+        bool: True if login successful, False otherwise
+    """
+    # Clear any existing user data to prevent session mixing
+    # Lists of prefixes for session state keys that should be cleared
+    prefixes_to_clear = [
+        'user_', 'doc_', 'analysis_', 'chat_', 'active_', 
+        'current_', 'selected_', 'rfp_', 'document_', 
+        'upload_', 'stats_', 'file_', 'requirements_',
+        'tasks_', 'timeline_'
+    ]
+    
+    # Clear all matching keys
+    for key in list(st.session_state.keys()):
+        if any(key.startswith(prefix) for prefix in prefixes_to_clear):
+            del st.session_state[key]
+            
+    # Clear specific known keys
+    specific_keys = [
+        'document_id', 'uploaded_document', 'analysis_results', 
+        'requirements', 'tasks', 'key_dates', 'chat_history',
+        'current_document', 'documents', 'rfp_data'
+    ]
+    
+    for key in specific_keys:
+        if key in st.session_state:
+            del st.session_state[key]
+            
+    # Attempt to authenticate
+    token = auth_instance.login(email, password)
+    
+    if token:
+        # Set session state variables for the logged in user
+        st.session_state.auth_token = token
+        user_info = auth_instance.validate_session(token)
+        if user_info:
+            st.session_state.user = user_info
+            st.session_state.logged_in = True
+            st.session_state.login_time = datetime.utcnow()
+            
+            # Reset to a clean state
+            st.session_state.page = None
+            
+            # Log the login
+            logging.info(f"User logged in: {email}")
+            
+            return True
+    
+    # If we got here, login failed
+    logging.warning(f"Failed login attempt for: {email}")
+    return False
