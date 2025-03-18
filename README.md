@@ -21,7 +21,7 @@ The main application:
 - **AI-Powered Chat**: Ask natural language questions about the RFP content
 - **Hybrid Processing**: Uses AWS Lambda for large documents with local processing fallback
 - **PDF Report Generation**: Export comprehensive analysis reports in professional PDF format
-- **Document Management**: Store, view, and manage your RFP documents with a user-friendly interface
+- **Document Management**: Enhanced UI for document storage, viewing, and management with filtering, search, and timeline views
 
 ### Enterprise Features
 - **Professional UI**: Modern enterprise-grade user interface with clean design
@@ -29,9 +29,33 @@ The main application:
 - **Requirements Categorization**: Automatic grouping of requirements by category
 - **Timeline Analysis**: Visual representation of key dates and deadlines
 - **Integrated Experience**: Combined extraction, analysis, and chat interface in a single application
-- **User Authentication**: Secure login system with role-based access control
-- **Document Library**: Persistent storage for all processed RFP documents
+- **User Authentication**: Secure login system with role-based access control, user registration, and session management
+- **Admin Panel**: Comprehensive admin interface for user management and system monitoring
+- **Document Library**: Advanced document management with filtering, search, and activity tracking
 - **Multi-session Support**: Resume analysis from previous sessions
+
+### Enhanced Authentication System
+- **User Registration**: Self-service registration with admin approval workflow
+- **Role-Based Access**: Different permission levels (admin, user)
+- **Session Management**: Secure session handling with expiration
+- **Password Security**: Secure password hashing and protection
+- **Admin Controls**: User approval, role management, and password reset
+
+### Document Management
+- **Document Library**: Centralized storage for all processed documents
+- **Activity Timeline**: Visualize document interactions over time
+- **Status Tracking**: Monitor document states (uploaded, processing, processed, error)
+- **Filtering & Search**: Find documents by status, date, filename, and more
+- **Document Actions**: Download, delete with confirmation
+- **Statistics Dashboard**: View document counts by status
+- **Category Management**: Organize documents by category
+
+### Admin Features
+- **User Management**: View, approve, and manage all system users
+- **Role Assignment**: Control access by assigning user roles
+- **System Dashboard**: View comprehensive system usage statistics
+- **Document Browser**: Access and manage all documents in the system
+- **Usage Metrics**: Track document uploads, processing, and user activity
 
 ### Data Extraction
 - Customer and organization information
@@ -72,19 +96,20 @@ The application uses a hybrid cloud/local architecture with MongoDB for persiste
 └───────────┘    └───────────┘     └───────────┘
                        │
                        ▼
-                ┌───────────┐
-                │ Document  │
-                │ Management│
-                └───────────┘
+                ┌───────────┐     ┌───────────┐
+                │ Document  │ ──▶ │  Admin    │
+                │ Management│     │  Panel    │
+                └───────────┘     └───────────┘
 ```
 
 - **Frontend**: Streamlit-based web interface
 - **Processing**: AWS Lambda for scalable processing or local processing fallback
 - **Storage**: 
   - AWS S3 for document storage
-  - MongoDB for persistent metadata and analysis results
+  - MongoDB for persistent metadata, analysis results, user data, and sessions
 - **AI Models**: OpenAI API for natural language processing and chat
-- **Authentication**: MongoDB-based user authentication system
+- **Authentication**: MongoDB-based user authentication system with role management
+- **Admin Panel**: Dashboard for system monitoring and user management
 
 ## 🚀 Getting Started
 
@@ -142,7 +167,7 @@ docker-compose up -d
 ### Enterprise RFP Assistant
 
 1. Launch the application: `streamlit run enterprise_rfp_assistant.py`
-2. Log in with your credentials
+2. Register or log in with your credentials
 3. Configure your OpenAI API key in the settings (if not set in environment variables)
 4. Navigate through the main tabs:
    - **Overview**: Dashboard with key metrics
@@ -150,6 +175,29 @@ docker-compose up -d
    - **Tasks**: Key tasks extracted from the document
    - **Timeline**: Visual timeline of key dates and deadlines
    - **Documents**: Manage your uploaded RFP documents
+   - **Admin Panel**: (Admin users only) Access system management features
+
+### Authentication Workflow
+
+The system provides a comprehensive authentication experience:
+
+#### Registration
+1. Click "Register" on the login screen
+2. Enter your email, password, name, and company
+3. Submit the registration
+4. An admin must approve your account before you can log in
+
+#### Login
+1. Enter your email and password
+2. The system validates your credentials and creates a secure session
+3. You'll be redirected to the main application interface
+
+#### Admin User Management
+1. Admins can access the User Management section
+2. Approve or reject new user registrations
+3. Change user roles (admin/user)
+4. Reset user passwords
+5. Activate/deactivate user accounts
 
 ### Document Management Workflow
 
@@ -168,13 +216,18 @@ The application provides a comprehensive document management system:
    - Upload date
    - File size
    - Processing status
-3. Click the "View" button (👁️) on any document to load its analysis
+3. Use filters to sort by date, status, or search by filename
+4. View documents in list or grid view
 
 #### Managing Documents
 The Documents tab provides several actions for each document:
-- **View**: Load the document analysis for chat and exploration
 - **Download**: Download the original document via a temporary link
 - **Delete**: Remove the document from the system (requires confirmation)
+
+#### Activity Timeline
+1. Navigate to the "Activity Timeline" tab in the document section
+2. View a visual representation of document activities over time
+3. See detailed activity cards showing interactions with each document
 
 #### Deletion Workflow
 1. Click the delete button (🗑️) on a document
@@ -189,6 +242,27 @@ Once a document is loaded:
 2. Ask natural language questions about the RFP content
 3. The AI assistant provides context-aware responses based on the document analysis
 4. Previous chat history is cleared when loading a new document
+
+### Admin Panel
+
+The admin panel provides comprehensive system management:
+
+#### Dashboard
+- User statistics (total users, active users, admins)
+- Document statistics (by status, processing time)
+- System usage metrics and visualizations
+
+#### User Management
+- View all users with filtering and search
+- Approve pending registrations
+- Change user roles
+- Reset passwords
+- Activate/deactivate accounts
+
+#### Document Browser
+- View all documents across users
+- Filter by user, status, and date
+- Manage documents (view, download, delete)
 
 ## ⚙️ Configuration
 
@@ -210,9 +284,10 @@ The application is configured via environment variables:
 ### MongoDB Configuration
 
 The application requires MongoDB for:
-- User authentication
-- Document metadata storage
+- User authentication and session management
+- Document metadata and event storage
 - Analysis results persistence
+- Admin statistics and metrics
 
 For MongoDB Atlas:
 - Ensure TLS is enabled with proper certificates
@@ -248,7 +323,6 @@ docker-compose down
 The docker-compose.yml file includes:
 - Application container
 - MongoDB container (or connection to external MongoDB)
-- Proper networking and volume configuration
 
 ## 🔒 Security Considerations
 
