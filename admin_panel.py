@@ -392,46 +392,64 @@ def render_user_management(auth_instance: UserAuth, colors: Dict[str, str]):
                 
                 # Actions for selected user
                 st.markdown("---")
-                action_col1, action_col2, action_col3 = st.columns(3)
                 
-                with action_col1:
+                # Move all controls into a more consistent layout
+                # First row for inputs/selections
+                input_col1, input_col2 = st.columns(2)
+                
+                with input_col1:
                     # Change role
                     new_role = st.selectbox("Change role:", ["user", "admin"], 
                                       index=0 if selected_user.get('role') != 'admin' else 1)
-                    if new_role != selected_user.get('role', 'user'):
-                        if st.button("Update Role", use_container_width=True, key="update_role_btn"):
-                            success = auth_instance.update_user_role(admin_id, user_id, new_role)
-                            if success:
-                                st.success(f"Role updated to {new_role}")
-                                st.rerun()
-                            else:
-                                st.error("Failed to update role")
                 
-                with action_col2:
+                # Second row for action buttons with consistent spacing
+                button_col1, button_col2, button_col3 = st.columns(3)
+                
+                with button_col1:
+                    if new_role != selected_user.get('role', 'user'):
+                        update_role_btn = st.button("Update Role", use_container_width=True, key="update_role_btn")
+                    else:
+                        # Add a placeholder button that's disabled when role hasn't changed
+                        st.button("Update Role", use_container_width=True, key="update_role_btn", disabled=True)
+                
+                with button_col2:
                     # Toggle active status
                     is_active = selected_user.get('active', False)
                     status_action = "Deactivate" if is_active else "Activate"
-                    if st.button(status_action, use_container_width=True, key="toggle_status_btn"):
-                        success = auth_instance.update_user_status(admin_id, user_id, not is_active)
-                        if success:
-                            st.success(f"User {status_action.lower()}d successfully")
-                            st.rerun()
-                        else:
-                            st.error(f"Failed to {status_action.lower()} user")
+                    toggle_status_btn = st.button(status_action, use_container_width=True, key="toggle_status_btn")
                 
-                with action_col3:
+                with button_col3:
                     # Reset password
-                    if st.button("Reset Password", use_container_width=True, key="reset_pwd_btn"):
-                        with st.expander("Confirm Password Reset", expanded=True):
-                            st.warning("This will generate a temporary password for the user.")
-                            if st.button("Yes, Reset Password", key="confirm_reset"):
-                                new_password = auth_instance.admin_reset_password(admin_id, user_id)
-                                if new_password:
-                                    st.success("Password reset successful!")
-                                    st.code(new_password, language="text")
-                                    st.info("Please securely share this temporary password with the user.")
-                                else:
-                                    st.error("Failed to reset password")
+                    reset_pwd_btn = st.button("Reset Password", use_container_width=True, key="reset_pwd_btn")
+                
+                # Handle button actions below
+                if 'update_role_btn' in st.session_state and st.session_state.update_role_btn and new_role != selected_user.get('role', 'user'):
+                    success = auth_instance.update_user_role(admin_id, user_id, new_role)
+                    if success:
+                        st.success(f"Role updated to {new_role}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to update role")
+                
+                if 'toggle_status_btn' in st.session_state and st.session_state.toggle_status_btn:
+                    success = auth_instance.update_user_status(admin_id, user_id, not is_active)
+                    if success:
+                        st.success(f"User {status_action.lower()}d successfully")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to {status_action.lower()} user")
+                
+                if 'reset_pwd_btn' in st.session_state and st.session_state.reset_pwd_btn:
+                    with st.expander("Confirm Password Reset", expanded=True):
+                        st.warning("This will generate a temporary password for the user.")
+                        if st.button("Yes, Reset Password", key="confirm_reset"):
+                            new_password = auth_instance.admin_reset_password(admin_id, user_id)
+                            if new_password:
+                                st.success("Password reset successful!")
+                                st.code(new_password, language="text")
+                                st.info("Please securely share this temporary password with the user.")
+                            else:
+                                st.error("Failed to reset password")
         else:
             st.info("No users found.")
     
@@ -609,9 +627,13 @@ def render_document_browser(document_storage: DocumentStorage, auth_instance: Us
         docs_df = pd.DataFrame(documents)
         
         # Rename and format columns - fix duplicate column problem
+        if 'uploaded_by' in docs_df.columns and 'user_email' in docs_df.columns:
+            # If both columns exist, drop uploaded_by to avoid duplication
+            docs_df = docs_df.drop(columns=['uploaded_by'])
+        
+        # Now rename columns
         docs_df = docs_df.rename(columns={
             # Don't rename _id to document_id since it's already an alias set in get_all_documents
-            # "_id": "document_id",  <- removing this line to avoid duplicate columns
             "uploaded_at": "upload_date",
             "user_email": "uploaded_by",
         })
@@ -675,45 +697,12 @@ def render_document_browser(document_storage: DocumentStorage, auth_instance: Us
             
             # Actions for selected document
             st.markdown("---")
-            doc_action_col1, doc_action_col2, doc_action_col3 = st.columns(3)
             
-            with doc_action_col1:
-                # Download document
-                if st.button("Download Document", use_container_width=True, key="download_doc_btn"):
-                    try:
-                        presigned_url = document_storage.generate_presigned_url(doc_id, admin_id)
-                        if presigned_url:
-                            st.success("Download link generated!")
-                            st.markdown(f"[Click here to download]({presigned_url})")
-                        else:
-                            st.error("Failed to generate download link")
-                    except Exception as e:
-                        st.error(f"Error generating download link: {str(e)}")
-                        logger.error(f"Download error: {str(e)}", exc_info=True)
+            # First row for owner selection
+            input_col1, input_col2 = st.columns(2)
             
-            with doc_action_col2:
-                # Delete document
-                if st.button("Delete Document", use_container_width=True, key="delete_doc_btn"):
-                    # Replace expander with direct confirmation
-                    st.warning("⚠️ This action cannot be undone.")
-                    delete_confirmed = st.button("Yes, I'm sure - Delete Document", key="confirm_delete_final", type="primary")
-                    cancel_delete = st.button("Cancel", key="cancel_delete")
-                    
-                    if delete_confirmed:
-                        try:
-                            success = document_storage.delete_document(doc_id, admin_id)
-                            if success:
-                                st.success("Document deleted successfully!")
-                                time.sleep(1)  # Brief pause for feedback
-                                st.rerun()
-                            else:
-                                st.error("Failed to delete document")
-                        except Exception as e:
-                            st.error(f"Error deleting document: {str(e)}")
-                            logger.error(f"Delete error: {str(e)}", exc_info=True)
-            
-            with doc_action_col3:
-                # Reassign document to another user
+            with input_col1:
+                # Reassign document to another user - moved from the third column
                 all_active_users = [u for u in all_users if u.get('active', False) and u['_id'] != selected_doc.get('user_id')]
                 
                 if all_active_users:
@@ -721,28 +710,97 @@ def render_document_browser(document_storage: DocumentStorage, auth_instance: Us
                         "Select new owner:",
                         options=[f"{user['fullname']} ({user['email']})" for user in all_active_users]
                     )
-                    
+            
+            # Second row for action buttons with consistent spacing
+            button_col1, button_col2, button_col3 = st.columns(3)
+            
+            with button_col1:
+                # Download document
+                download_btn = st.button("Download Document", use_container_width=True, key="download_doc_btn")
+            
+            with button_col2:
+                # Delete document - using session state for confirmation
+                if "confirm_delete_doc" not in st.session_state:
+                    st.session_state.confirm_delete_doc = False
+                
+                if st.session_state.confirm_delete_doc:
+                    delete_btn = st.button("Confirm Delete", use_container_width=True, key="confirm_delete_btn", type="primary")
+                else:
+                    delete_btn = st.button("Delete Document", use_container_width=True, key="delete_doc_btn")
+            
+            with button_col3:
+                # Reassign document button
+                if all_active_users:
                     # Extract user_id from selection
                     new_owner_email = new_owner.split('(')[-1].split(')')[0]
                     new_owner_obj = next((u for u in all_active_users if u['email'] == new_owner_email), None)
                     
-                    if new_owner_obj and st.button("Reassign Document", use_container_width=True, key="reassign_doc_btn"):
-                        try:
-                            success = document_storage.reassign_document(
-                                doc_id, 
-                                admin_id, 
-                                new_owner_obj['_id']
-                            )
-                            if success:
-                                st.success(f"Document reassigned to {new_owner}!")
-                                st.rerun()
-                            else:
-                                st.error("Failed to reassign document")
-                        except Exception as e:
-                            st.error(f"Error reassigning document: {str(e)}")
-                            logger.error(f"Reassign error: {str(e)}", exc_info=True)
+                    reassign_btn = st.button("Reassign Document", use_container_width=True, key="reassign_doc_btn")
                 else:
                     st.info("No other active users to reassign to")
+            
+            # Handle button actions below
+            # Download action
+            if download_btn:
+                try:
+                    presigned_url = document_storage.generate_presigned_url(doc_id, admin_id)
+                    if presigned_url:
+                        st.success("Download link generated!")
+                        st.markdown(f"[Click here to download]({presigned_url})")
+                    else:
+                        st.error("Failed to generate download link")
+                except Exception as e:
+                    st.error(f"Error generating download link: {str(e)}")
+                    logger.error(f"Download error: {str(e)}", exc_info=True)
+            
+            # Delete action
+            if delete_btn and not st.session_state.confirm_delete_doc:
+                # First click - show confirmation
+                st.session_state.confirm_delete_doc = True
+                st.warning("⚠️ This action cannot be undone. Click 'Confirm Delete' to permanently delete this document.")
+                st.rerun()
+            
+            if delete_btn and st.session_state.confirm_delete_doc:
+                # Confirmed delete
+                try:
+                    success = document_storage.delete_document(doc_id, admin_id)
+                    if success:
+                        st.session_state.confirm_delete_doc = False
+                        st.success("Document deleted successfully!")
+                        time.sleep(1)  # Brief pause for feedback
+                        st.rerun()
+                    else:
+                        st.session_state.confirm_delete_doc = False
+                        st.error("Failed to delete document")
+                except Exception as e:
+                    st.session_state.confirm_delete_doc = False
+                    st.error(f"Error deleting document: {str(e)}")
+                    logger.error(f"Delete error: {str(e)}", exc_info=True)
+            
+            # Cancel delete if user selects a different document
+            if "last_selected_doc" not in st.session_state:
+                st.session_state.last_selected_doc = selected_doc_filename
+            
+            if st.session_state.last_selected_doc != selected_doc_filename:
+                st.session_state.confirm_delete_doc = False
+                st.session_state.last_selected_doc = selected_doc_filename
+            
+            # Reassign action
+            if all_active_users and 'reassign_btn' in locals() and reassign_btn and new_owner_obj:
+                try:
+                    success = document_storage.reassign_document(
+                        doc_id, 
+                        admin_id, 
+                        new_owner_obj['_id']
+                    )
+                    if success:
+                        st.success(f"Document reassigned to {new_owner}!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to reassign document")
+                except Exception as e:
+                    st.error(f"Error reassigning document: {str(e)}")
+                    logger.error(f"Reassign error: {str(e)}", exc_info=True)
     else:
         # If no documents, provide a more helpful message and option to create a sample document
         st.info("No documents found matching the filters. Try adjusting your search criteria or check if documents have been uploaded to the system.")

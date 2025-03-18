@@ -214,40 +214,50 @@ def render_document_grid(documents, document_storage, colors):
         uploaded_at = doc.get("uploaded_at")
         status = doc.get("status", "unknown")
         file_size = doc.get("file_size")
+        category = doc.get("category", "")
         
         # Truncate long filenames
         display_name = filename if len(filename) < 30 else filename[:27] + "..."
         
         with cols[i % 3]:
-            # Create card using native Streamlit elements with clean HTML
-            card_html = f"""
-            <div style="
-                background-color: white; 
-                border-radius: 8px; 
-                padding: 1rem; 
-                margin-bottom: 0.5rem;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-                border-top: 4px solid {colors['primary']};
-            ">
-                <div style="font-weight: 500; font-size: 1rem; margin-bottom: 0.5rem;">
-                    {display_name}
-                </div>
-                <div style="font-size: 0.8rem; color: {colors['text_muted']};">
-                    Uploaded: {format_timestamp(uploaded_at)}<br>
-                    Size: {format_file_size(file_size)}<br>
-                    Status: {get_status_badge(status)}
-                </div>
-            </div>
-            """
-            # Render the card HTML
-            st.markdown(card_html, unsafe_allow_html=True)
+            # Add CSS styling for the card
+            st.markdown("""
+            <style>
+            .document-card-grid {
+                background-color: white;
+                border-radius: 8px;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                border-top: 4px solid var(--primary-color);
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Simple card container
+            st.markdown('<div class="document-card-grid">', unsafe_allow_html=True)
+            
+            # Document name
+            st.markdown(f"**{display_name}**")
+            
+            # Status badge
+            st.markdown(get_status_badge(status), unsafe_allow_html=True)
+            
+            # Metadata with minimal HTML
+            uploaded_text = f"Uploaded: {format_timestamp(uploaded_at)}"
+            size_text = f"Size: {format_file_size(file_size)}"
+            
+            st.markdown(f'<span style="font-size: 0.8rem; color: {colors["text_muted"]};">{uploaded_text}<br>{size_text}</span>', unsafe_allow_html=True)
+            
+            # End of card container
+            st.markdown('</div>', unsafe_allow_html=True)
             
             # Use native Streamlit buttons - remove the view button
             button_cols = st.columns(2)
             with button_cols[0]:
-                st.button("⬇️ Download", key=f"download_{doc_id}", on_click=download_document, args=(doc_id, document_storage), use_container_width=True)
+                st.button("⬇️ Download", key=f"download_grid_{doc_id}", on_click=download_document, args=(doc_id, document_storage), use_container_width=True)
             with button_cols[1]:
-                st.button("🗑️ Delete", key=f"delete_{doc_id}", on_click=delete_document, args=(doc_id,), use_container_width=True)
+                st.button("🗑️ Delete", key=f"delete_grid_{doc_id}", on_click=delete_document, args=(doc_id,), use_container_width=True)
 
 def view_document(doc, document_storage):
     """Set the current document to view"""
@@ -583,53 +593,62 @@ def render_document_management(document_storage: DocumentStorage, colors: Dict[s
                 file_size = doc.get("file_size")
                 category = doc.get("category", "")
                 
-                # Create a card for each document - with clean HTML structure
-                card_html = f"""
-                <div style="
-                    background-color: white;
-                    border-radius: 8px;
-                    padding: 1rem;
-                    margin-bottom: 0.75rem;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                ">
-                    <div style="display: flex; align-items: center;">
-                        <div style="
-                            background-color: {colors['primary']}20;
-                            border-radius: 8px;
-                            width: 40px;
-                            height: 40px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            margin-right: 1rem;
-                            font-size: 1.2rem;
-                        ">
-                            📄
-                        </div>
-                        <div style="flex-grow: 1;">
-                            <div style="display: flex; justify-content: space-between;">
-                                <div style="font-weight: 500;">{filename}</div>
-                                <div>{get_status_badge(status)}</div>
-                            </div>
-                            <div style="font-size: 0.8rem; color: {colors['text_muted']}; display: flex; justify-content: space-between;">
-                                <div>Uploaded: {format_timestamp(uploaded_at)} • Size: {format_file_size(file_size)}</div>
-                                <div>
-                                    {f'<span style="background-color: {colors["primary"]}20; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem;">{category}</span>' if category else ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                """
+                # Create a container with styling for the card
+                with st.container():
+                    # Add CSS styling to the container
+                    st.markdown("""
+                    <style>
+                    .document-card {
+                        background-color: white;
+                        border-radius: 8px;
+                        padding: 1rem;
+                        margin-bottom: 0.75rem;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    # Card container start
+                    st.markdown('<div class="document-card">', unsafe_allow_html=True)
+                    
+                    # Create columns for layout inside the card
+                    icon_col, content_col = st.columns([1, 10])
+                    
+                    # Icon in first column
+                    with icon_col:
+                        # Simple HTML for the icon only
+                        st.markdown(
+                            f'<div style="background-color: {colors["primary"]}20; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; text-align: center;">📄</div>',
+                            unsafe_allow_html=True
+                        )
+                    
+                    # Content in second column
+                    with content_col:
+                        # First row: Filename and status
+                        filename_col, status_col = st.columns([3, 1])
+                        
+                        with filename_col:
+                            st.markdown(f"**{filename}**")
+                        
+                        with status_col:
+                            # Status badge
+                            st.markdown(get_status_badge(status), unsafe_allow_html=True)
+                        
+                        # Second row: Metadata
+                        meta_text = f"Uploaded: {format_timestamp(uploaded_at)} • Size: {format_file_size(file_size)}"
+                        if category:
+                            meta_text += f' • <span style="background-color: {colors["primary"]}20; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem;">{category}</span>'
+                        
+                        st.markdown(f'<span style="font-size: 0.8rem; color: {colors["text_muted"]};">{meta_text}</span>', unsafe_allow_html=True)
+                    
+                    # Card container end
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                # Render the card HTML
-                st.markdown(card_html, unsafe_allow_html=True)
-                
-                # Add buttons below the card - removed view button
-                cols = st.columns([1, 1, 4])  # Adjusted column widths
-                with cols[0]:
+                # Add buttons below the card - kept the same
+                action_cols = st.columns([1, 1, 4])  # Adjusted column widths
+                with action_cols[0]:
                     st.button("⬇️ Download", key=f"download_{doc_id}", on_click=download_document, args=(doc_id, document_storage), use_container_width=True)
-                with cols[1]:
+                with action_cols[1]:
                     st.button("🗑️ Delete", key=f"delete_{doc_id}", on_click=delete_document, args=(doc_id,), use_container_width=True)
     
     with tab2:
