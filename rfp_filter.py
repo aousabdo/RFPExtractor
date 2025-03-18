@@ -27,8 +27,79 @@ def get_requirements(result: Dict[str, Any], category: str = None) -> Dict[str, 
         return {"requirements": filtered_reqs}
     return {"requirements": result['requirements']}
 
-def get_dates(result: Dict[str, Any]) -> Dict[str, Any]:
-    return {"dates": sorted(result['dates'], key=lambda x: (x.get('page', 0), x.get('event', '')))}
+def get_dates(result):
+    # Return empty list if no dates key or it's empty
+    if not result or 'dates' not in result or not result['dates']:
+        return {"dates": []}
+    
+    # Make a copy of dates to avoid modifying the original
+    dates_list = result.get('dates', [])
+    
+    # Ensure dates_list is actually a list
+    if not isinstance(dates_list, list):
+        try:
+            dates_list = list(dates_list)
+        except:
+            return {"dates": []}
+    
+    valid_dates = []
+    
+    # Process each date, with extensive error handling
+    for date in dates_list:
+        try:
+            # Skip None entries
+            if date is None:
+                continue
+                
+            # Ensure date is a dictionary
+            if not isinstance(date, dict):
+                continue
+                
+            # Create a sanitized date entry with default values
+            sanitized_date = {
+                'page': 0,
+                'event': '',
+                'date': date.get('date', ''),
+                'description': date.get('description', '')
+            }
+            
+            # Process page field
+            if 'page' in date and date['page'] is not None:
+                try:
+                    sanitized_date['page'] = int(str(date['page']).strip())
+                except:
+                    pass  # Keep default value
+            
+            # Process event field
+            if 'event' in date and date['event'] is not None:
+                try:
+                    sanitized_date['event'] = str(date['event']).strip()
+                except:
+                    pass  # Keep default value
+            
+            # Copy any other fields
+            for key, value in date.items():
+                if key not in sanitized_date and value is not None:
+                    try:
+                        sanitized_date[key] = value
+                    except:
+                        pass
+            
+            valid_dates.append(sanitized_date)
+        except Exception as e:
+            # If any date fails processing, just skip it
+            print(f"Warning: Failed to process date entry: {str(e)}")
+            continue
+    
+    # Try to sort dates, with fallback to unsorted
+    try:
+        # Sort first by page, then by event
+        sorted_dates = sorted(valid_dates, key=lambda x: (x['page'], x['event']))
+        return {"dates": sorted_dates}
+    except Exception as e:
+        # If sorting fails, return unsorted list
+        print(f"Warning: Failed to sort dates: {str(e)}")
+        return {"dates": valid_dates}
 
 # Base sections
 BASE_SECTIONS = {
@@ -47,7 +118,7 @@ REQ_CATEGORIES = {
     'requirements': get_requirements,  # All requirements
 }
 
-# Combined sections dictionary
+# Combined sections dictionary with safer implementation
 SECTIONS = {
     **BASE_SECTIONS,
     **REQ_CATEGORIES,

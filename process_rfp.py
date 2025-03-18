@@ -212,14 +212,53 @@ class RFPProcessor:
             
             # Handle dates
             for date in res.get("dates", []):
-                if not date.get("event") or not date.get("date"):
+                try:
+                    # Skip entries with missing required fields
+                    if not date:
+                        continue
+                        
+                    # Ensure date is a dictionary
+                    if not isinstance(date, dict):
+                        continue
+                    
+                    # Skip entries with missing key fields
+                    if not date.get("event") or not date.get("date"):
+                        continue
+                    
+                    # Sanitize and standardize fields
+                    event = str(date.get("event", "")).strip()
+                    date_str = str(date.get("date", "")).strip()
+                    page = 0
+                    
+                    # Ensure page is a valid integer
+                    if "page" in date and date["page"] is not None:
+                        try:
+                            page = int(str(date["page"]).strip())
+                        except (ValueError, TypeError):
+                            # Keep default if conversion fails
+                            pass
+                    
+                    # Create a sanitized date object
+                    clean_date = {
+                        "event": event,
+                        "date": date_str,
+                        "page": page
+                    }
+                    
+                    # Add description if available
+                    if "description" in date and date["description"]:
+                        clean_date["description"] = str(date["description"]).strip()
+                    
+                    # Generate a unique ID for deduplication
+                    date_id = f"{event.lower()}-{date_str.lower()}"
+                    
+                    if date_id not in seen_dates:
+                        aggregated["dates"].append(clean_date)
+                        seen_dates.add(date_id)
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to process date entry: {str(e)}")
                     continue
-                event = date.get("event").lower().strip()
-                date_str = date.get("date").lower().strip()
-                date_id = f"{event}-{date_str}"
-                if date_id not in seen_dates:
-                    aggregated["dates"].append(date)
-                    seen_dates.add(date_id)
         
         logger.info(f"Aggregation complete: {len(aggregated['tasks'])} tasks, "
                    f"{len(aggregated['requirements'])} requirements, "
