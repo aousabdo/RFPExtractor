@@ -35,7 +35,7 @@ def render_admin_panel(auth_instance: UserAuth, document_storage: DocumentStorag
     if st.button("← Return to Main App", key="return_to_main_app", type="primary"):
         # Set the page to None or 'home' to return to the main view
         st.session_state.page = None
-        st.experimental_rerun()
+        st.rerun()
     
     st.markdown("Manage users, view system statistics, and browse all documents in the organization.")
     
@@ -403,7 +403,7 @@ def render_user_management(auth_instance: UserAuth, colors: Dict[str, str]):
                             success = auth_instance.update_user_role(admin_id, user_id, new_role)
                             if success:
                                 st.success(f"Role updated to {new_role}")
-                                st.experimental_rerun()
+                                st.rerun()
                             else:
                                 st.error("Failed to update role")
                 
@@ -415,7 +415,7 @@ def render_user_management(auth_instance: UserAuth, colors: Dict[str, str]):
                         success = auth_instance.update_user_status(admin_id, user_id, not is_active)
                         if success:
                             st.success(f"User {status_action.lower()}d successfully")
-                            st.experimental_rerun()
+                            st.rerun()
                         else:
                             st.error(f"Failed to {status_action.lower()} user")
                 
@@ -491,7 +491,7 @@ def render_user_management(auth_instance: UserAuth, colors: Dict[str, str]):
                         success = auth_instance.approve_user(admin_id, pending_id, True)
                         if success:
                             st.success(f"User {selected_pending['email']} approved!")
-                            st.experimental_rerun()
+                            st.rerun()
                         else:
                             st.error("Failed to approve user")
                 
@@ -500,7 +500,7 @@ def render_user_management(auth_instance: UserAuth, colors: Dict[str, str]):
                         success = auth_instance.approve_user(admin_id, pending_id, False)
                         if success:
                             st.success(f"User {selected_pending['email']} rejected!")
-                            st.experimental_rerun()
+                            st.rerun()
                         else:
                             st.error("Failed to reject user")
         else:
@@ -705,7 +705,7 @@ def render_document_browser(document_storage: DocumentStorage, auth_instance: Us
                             if success:
                                 st.success("Document deleted successfully!")
                                 time.sleep(1)  # Brief pause for feedback
-                                st.experimental_rerun()
+                                st.rerun()
                             else:
                                 st.error("Failed to delete document")
                         except Exception as e:
@@ -735,7 +735,7 @@ def render_document_browser(document_storage: DocumentStorage, auth_instance: Us
                             )
                             if success:
                                 st.success(f"Document reassigned to {new_owner}!")
-                                st.experimental_rerun()
+                                st.rerun()
                             else:
                                 st.error("Failed to reassign document")
                         except Exception as e:
@@ -764,7 +764,7 @@ def render_document_browser(document_storage: DocumentStorage, auth_instance: Us
                     if success:
                         st.success("Sample document created successfully! Refresh to see it.")
                         time.sleep(1)  # Give a moment for the success message to be seen
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Failed to create sample document.")
                 except Exception as e:

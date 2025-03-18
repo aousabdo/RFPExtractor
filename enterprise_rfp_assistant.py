@@ -1366,7 +1366,7 @@ def display_chat_interface():
             st.session_state.messages.append({"role": "assistant", "content": response})
             
             # Force refresh
-            st.experimental_rerun()
+            st.rerun()
     else:
         st.warning("Please enter your OpenAI API key in the sidebar to enable chat functionality.")
 
@@ -1397,7 +1397,7 @@ def main_content():
             if st.button("🔐 Admin Panel", key="admin_panel_button", use_container_width=True):
                 st.session_state.page = "admin"
                 # Force a rerun to refresh the page
-                st.experimental_rerun()
+                st.rerun()
                 
             st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
         
@@ -1586,7 +1586,7 @@ You can now ask me questions about this RFP, or explore the analysis using the t
                             document_storage.update_analysis_results(document_id, result)
                             st.session_state.current_document_id = document_id
                         
-                        st.experimental_rerun()
+                        st.rerun()
     
     # Show admin panel if admin user and on admin page
     if is_admin and st.session_state.page == "admin":

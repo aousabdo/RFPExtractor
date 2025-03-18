@@ -134,7 +134,7 @@ def render_auth_header(colors: Dict[str, str]):
                 st.session_state.page = "profile"
             else:
                 st.session_state.page = "main"
-            st.experimental_rerun()
+            st.rerun()
 
 def login_form(auth_instance, colors: Dict[str, str]):
     """
@@ -211,7 +211,7 @@ def login_form(auth_instance, colors: Dict[str, str]):
                             st.session_state.auth_message = f"Welcome back, {st.session_state.user['fullname']}!"
                             st.session_state.auth_status = "success"
                             st.session_state.page = "main"
-                            st.experimental_rerun()  # Refresh to show authenticated content
+                            st.rerun()  # Refresh to show authenticated content
                         else:
                             st.session_state.auth_message = "Invalid email or password"
                             st.session_state.auth_status = "error"
@@ -576,11 +576,11 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
                                     help="Account Settings",
                                     use_container_width=True):
                             st.session_state.page = "profile"
-                            st.experimental_rerun()
+                            st.rerun()
                     with user_menu_col2:
                         if st.button("Sign Out", key="sign_out_button", use_container_width=True):
                             logout(auth_instance)
-                            st.experimental_rerun()
+                            st.rerun()
                             
             # Render the main application content (will show admin panel based on session state)
             page_content_function()
@@ -604,11 +604,11 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
                                     help="Account Settings",
                                     use_container_width=True):
                             st.session_state.page = "profile"
-                            st.experimental_rerun()
+                            st.rerun()
                     with user_menu_col2:
                         if st.button("Sign Out", key="sign_out_button", use_container_width=True):
                             logout(auth_instance)
-                            st.experimental_rerun()
+                            st.rerun()
             
             # Render the main application content
             page_content_function()
@@ -647,7 +647,7 @@ def logout_user():
     st.session_state.logout_message = "You have been logged out successfully."
     
     # Perform a rerun to refresh the page
-    st.experimental_rerun()
+    st.rerun()
 
 def login_user(email, password, auth_instance):
     """
