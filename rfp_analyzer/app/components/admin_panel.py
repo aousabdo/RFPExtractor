@@ -6,8 +6,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import logging
 from typing import Dict, Any, List, Optional
-from document_storage import DocumentStorage
-from auth import UserAuth
+from rfp_analyzer.core.storage.document_storage import DocumentStorage
+from rfp_analyzer.core.auth.user_auth import UserAuth
 from bson.objectid import ObjectId
 import time
 

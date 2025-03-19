@@ -3,7 +3,7 @@ import sys
 import json
 import logging
 from typing import List, Dict, Any
-from process_rfp import RFPProcessor
+from rfp_analyzer.core.processing.processor import RFPProcessor
 
 # Configure logging
 logger = logging.getLogger(__name__)

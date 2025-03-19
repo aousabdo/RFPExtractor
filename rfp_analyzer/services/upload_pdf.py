@@ -11,50 +11,10 @@ import logging
 from typing import Dict, Any, List, Optional
 from botocore.exceptions import ClientError
 
-# Import from config
-from rfp_analyzer.app.config import AWS_REGION, S3_BUCKET, LAMBDA_URL
-
 # Configure logging
 logger = logging.getLogger(__name__)
 
 def get_aws_session(aws_region):
-    """
-    Tries to create a session with the default profile. If it fails, switches to the 'rfp' profile.
-    
-    Args:
-        aws_region (str): The AWS region to use (e.g., 'us-east-1')
-    
-    Returns:
-        boto3.Session: An AWS session object
-    
-    Exits:
-        If both default and 'rfp' profiles fail to authenticate
-    """
-    try:
-        # Attempt to use the default profile
-        session = boto3.Session(region_name=aws_region)
-        credentials = session.get_credentials()
-        
-        if credentials is None or credentials.access_key is None:
-            raise botocore.exceptions.NoCredentialsError()
-
-        print("Using AWS default profile")
-        return session
-
-    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError):
-        print("Default AWS profile failed. Trying 'rfp' profile...")
-        try:
-            session = boto3.Session(profile_name="rfp", region_name=aws_region)
-            credentials = session.get_credentials()
-            
-            if credentials is None or credentials.access_key is None:
-                raise botocore.exceptions.NoCredentialsError()
-
-            print("Using AWS profile: rfp")
-            return session
-        except Exception as e:
-            print(f"Error: Unable to authenticate with AWS. {str(e)}")
-            exit(1)  # Exit the script if both profiles fail
     """
     Tries to create a session with the default profile. If it fails, switches to the 'rfp' profile.
     

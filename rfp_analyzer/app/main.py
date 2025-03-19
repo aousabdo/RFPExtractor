@@ -6,9 +6,6 @@ import time
 import uuid
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
-import upload_pdf
-from rfp_filter import run_filter, SECTIONS
-import process_rfp
 import logging
 from datetime import datetime, timedelta
 import random
@@ -19,22 +16,29 @@ from dotenv import load_dotenv
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
+from reportlab.lib import colors as reportlab_colors
 from reportlab.lib.units import inch
 
-from document_storage import DocumentStorage
-import document_management_ui
+# Import configuration
+from rfp_analyzer.app.config import (
+    OPENAI_API_KEY, MONGODB_URI, MONGODB_DB, 
+    AWS_REGION, S3_BUCKET, LAMBDA_URL, 
+    COLORS, DEFAULT_MODEL, ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME
+)
 
-# Import authentication modules
-from mongodb_connection import get_mongodb_connection
-from auth import UserAuth
-import auth_ui
-
-# Import admin panel
-import admin_panel
-
-# Load environment variables
-load_dotenv()
+# Import application components
+from rfp_analyzer.core.storage.document_storage import DocumentStorage
+from rfp_analyzer.core.storage.db_connection import get_mongodb_connection
+from rfp_analyzer.core.auth.user_auth import UserAuth
+from rfp_analyzer.app.components import auth_ui
+from rfp_analyzer.app.components.auth_ui import require_auth, init_auth_session_state
+from rfp_analyzer.app.components.document_ui import render_document_management
+from rfp_analyzer.app.components import admin_panel
+from rfp_analyzer.app.components.admin_panel import render_admin_panel
+from rfp_analyzer.services.aws.s3_service import upload_and_process_pdf
+from rfp_analyzer.core.processing.processor import process_pdf
+from rfp_analyzer.services import upload_pdf, process_rfp
+from rfp_analyzer.app.components import document_management_ui
 
 # Configure logging
 logging.basicConfig(

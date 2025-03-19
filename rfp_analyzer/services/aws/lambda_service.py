@@ -1,10 +1,11 @@
+#!/usr/bin/env python3
 import json
 import os
 import boto3
 import logging
 import traceback
 from typing import Dict, Any
-from rfp_filter import run_filter, SECTIONS
+from rfp_analyzer.core.processing.filters import run_filter, SECTIONS
 
 # Configure logging
 logger = logging.getLogger()
@@ -47,7 +48,7 @@ def safe_run_filter(pdf_path, sections):
             logger.warning("Caught TypeError with NoneType comparison, applying hotfix")
             
             # Direct hotfix: Process the PDF again but handle the dates manually
-            from process_rfp import RFPProcessor
+            from rfp_analyzer.core.processing.processor import RFPProcessor
             processor = RFPProcessor()
             result = processor.process_rfp(pdf_path)
             

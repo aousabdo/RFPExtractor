@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import json
 import fitz  # PyMuPDF
@@ -6,9 +5,6 @@ import logging
 from openai import OpenAI
 import boto3
 from typing import List, Dict, Any
-
-# Import from config
-from rfp_analyzer.app.config import OPENAI_API_KEY
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -42,7 +38,7 @@ def get_openai_api_key() -> str:
         logger.warning(f"Failed to get API key from Secrets Manager: {str(e)}")
         logger.info("Falling back to environment variable OPENAI_API_KEY")
 
-        api_key = OPENAI_API_KEY or os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             logger.error("OpenAI API key not found in Secrets Manager or environment")
             raise ValueError(

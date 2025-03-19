@@ -7,9 +7,8 @@ from datetime import datetime, timedelta
 import time
 from typing import Dict, Any, List, Optional
 import logging
-from rfp_analyzer.core.storage.document_storage import DocumentStorage
+from document_storage import DocumentStorage
 from bson.objectid import ObjectId  # Import ObjectId
-from rfp_analyzer.app.config import COLORS
 
 # Configure logging
 logger = logging.getLogger(__name__)

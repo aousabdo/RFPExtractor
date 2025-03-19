@@ -6,6 +6,9 @@ import os
 import json
 from datetime import datetime
 
+# Import from app config
+from rfp_analyzer.app.config import COLORS
+
 # Configure logging
 logger = logging.getLogger(__name__)
 

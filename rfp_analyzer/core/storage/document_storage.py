@@ -8,11 +8,14 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 
+# Import from config
+from rfp_analyzer.app.config import AWS_REGION, S3_BUCKET
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
 class DocumentStorage:
-    def __init__(self, db, aws_region="us-east-1", s3_bucket="my-rfp-bucket"):
+    def __init__(self, db, aws_region=None, s3_bucket=None):
         """
         Initialize the DocumentStorage class with a MongoDB database instance
         
@@ -23,16 +26,16 @@ class DocumentStorage:
         """
         self.db = db
         self.documents = db.rfp_documents
-        self.aws_region = aws_region
-        self.s3_bucket = s3_bucket
+        self.aws_region = aws_region or AWS_REGION
+        self.s3_bucket = s3_bucket or S3_BUCKET
         
         # Create necessary indexes
         self._setup_indexes()
         
         # Initialize S3 client
         try:
-            self.s3_client = boto3.client('s3', region_name=aws_region)
-            logger.info(f"S3 client initialized for region {aws_region}")
+            self.s3_client = boto3.client('s3', region_name=self.aws_region)
+            logger.info(f"S3 client initialized for region {self.aws_region}")
         except Exception as e:
             logger.error(f"Failed to initialize S3 client: {str(e)}")
             self.s3_client = None
