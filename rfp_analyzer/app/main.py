@@ -246,9 +246,20 @@ def load_css():
     
     /* App Container */
     .main .block-container {{
-        padding-top: 2rem;
+        padding-top: 0rem;
         max-width: 100%;
     }}
+    
+    /* Hide default Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {visibility: hidden !important;}
+    header {visibility: hidden;}
+    
+    /* Remove extra whitespace at top */
+    .stApp {
+        margin-top: -4rem;
+    }
     
     .main {{
         color: {colors["text"]};
