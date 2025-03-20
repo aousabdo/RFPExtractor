@@ -8,7 +8,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 # Load custom logo from file
 def load_svg_logo():
     try:

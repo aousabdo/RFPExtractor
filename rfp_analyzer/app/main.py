@@ -13,11 +13,11 @@ import getpass
 import socket
 import tempfile
 from dotenv import load_dotenv
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors as reportlab_colors
-from reportlab.lib.units import inch
+# from reportlab.lib.pagesizes import letter
+# from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+# from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+# from reportlab.lib import colors as reportlab_colors
+# from reportlab.lib.units import inch
 
 # Import configuration
 from rfp_analyzer.app.config import (
@@ -41,7 +41,8 @@ from rfp_analyzer.services import upload_pdf, process_rfp
 from rfp_analyzer.app.components import document_management_ui
 from rfp_analyzer.utils.api_utils import get_env_api_key, test_api_key, debug_api_key, get_openai_client
 from rfp_analyzer.utils.ui_utils import load_svg_logo, get_colors, load_css, render_app_header, we_need_icons
-
+from rfp_analyzer.utils.file_utils import format_file_size
+from rfp_analyzer.utils.pdf_utils import process_pdf_locally, generate_pdf_report, generate_report_filename
 
 # Configure logging
 logging.basicConfig(
@@ -222,19 +223,19 @@ if "openai_api_key" not in st.session_state:
 #         "bot_msg_bg": "#F3F4F6"
 #     }
 
-def format_file_size(size_bytes):
-    """Format file size in bytes to a human-readable format"""
-    if size_bytes is None:
-        return "Unknown"
+# def format_file_size(size_bytes):
+#     """Format file size in bytes to a human-readable format"""
+#     if size_bytes is None:
+#         return "Unknown"
     
-    if size_bytes < 1024:
-        return f"{size_bytes} bytes"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+#     if size_bytes < 1024:
+#         return f"{size_bytes} bytes"
+#     elif size_bytes < 1024 * 1024:
+#         return f"{size_bytes / 1024:.1f} KB"
+#     elif size_bytes < 1024 * 1024 * 1024:
+#         return f"{size_bytes / (1024 * 1024):.1f} MB"
+#     else:
+#         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 # # Custom CSS for enterprise UI
 # def load_css():
@@ -441,251 +442,251 @@ def format_file_size(size_bytes):
 # def we_need_icons():
 #     return {}
 
-def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str = "gpt-4o") -> str:
-    """
-    Generate a PDF report from the RFP analysis data
+# def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str = "gpt-4o") -> str:
+#     """
+#     Generate a PDF report from the RFP analysis data
     
-    Args:
-        rfp_data: The analyzed RFP data dictionary
-        rfp_name: Name of the RFP document
-        model_used: The LLM model used for analysis
+#     Args:
+#         rfp_data: The analyzed RFP data dictionary
+#         rfp_name: Name of the RFP document
+#         model_used: The LLM model used for analysis
         
-    Returns:
-        Path to the generated PDF file
-    """
-    # Import reportlab colors
-    from reportlab.lib import colors as reportlab_colors
+#     Returns:
+#         Path to the generated PDF file
+#     """
+#     # Import reportlab colors
+#     from reportlab.lib import colors as reportlab_colors
     
-    # Create a temporary file for the PDF
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-        pdf_path = tmp.name
+#     # Create a temporary file for the PDF
+#     with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+#         pdf_path = tmp.name
     
-    # Create the PDF document
-    doc = SimpleDocTemplate(pdf_path, pagesize=letter)
-    styles = getSampleStyleSheet()
+#     # Create the PDF document
+#     doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+#     styles = getSampleStyleSheet()
     
-    # Create custom styles
-    title_style = ParagraphStyle(
-        'Title',
-        parent=styles['Heading1'],
-        fontSize=16,
-        textColor=reportlab_colors.blue,
-        spaceAfter=12
-    )
+#     # Create custom styles
+#     title_style = ParagraphStyle(
+#         'Title',
+#         parent=styles['Heading1'],
+#         fontSize=16,
+#         textColor=reportlab_colors.blue,
+#         spaceAfter=12
+#     )
     
-    heading_style = ParagraphStyle(
-        'Heading',
-        parent=styles['Heading2'],
-        fontSize=14,
-        textColor=reportlab_colors.blue,
-        spaceAfter=10,
-        spaceBefore=10
-    )
+#     heading_style = ParagraphStyle(
+#         'Heading',
+#         parent=styles['Heading2'],
+#         fontSize=14,
+#         textColor=reportlab_colors.blue,
+#         spaceAfter=10,
+#         spaceBefore=10
+#     )
     
-    subheading_style = ParagraphStyle(
-        'Subheading',
-        parent=styles['Heading3'],
-        fontSize=12,
-        textColor=reportlab_colors.darkblue,
-        spaceAfter=8
-    )
+#     subheading_style = ParagraphStyle(
+#         'Subheading',
+#         parent=styles['Heading3'],
+#         fontSize=12,
+#         textColor=reportlab_colors.darkblue,
+#         spaceAfter=8
+#     )
     
-    normal_style = styles["Normal"]
-    normal_style.fontSize = 10
+#     normal_style = styles["Normal"]
+#     normal_style.fontSize = 10
     
-    # Build the content for the PDF
-    content = []
+#     # Build the content for the PDF
+#     content = []
     
-    # Add title
-    content.append(Paragraph(f"RFP Analysis Report: {rfp_name}", title_style))
-    content.append(Spacer(1, 0.25*inch))
+#     # Add title
+#     content.append(Paragraph(f"RFP Analysis Report: {rfp_name}", title_style))
+#     content.append(Spacer(1, 0.25*inch))
     
-    # Add metadata
-    generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        username = getpass.getuser()
-    except:
-        username = "unknown_user"
+#     # Add metadata
+#     generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#     try:
+#         username = getpass.getuser()
+#     except:
+#         username = "unknown_user"
     
-    try:
-        hostname = socket.gethostname()
-    except:
-        hostname = "unknown_host"
+#     try:
+#         hostname = socket.gethostname()
+#     except:
+#         hostname = "unknown_host"
     
-    metadata = [
-        [Paragraph("<b>Generated On:</b>", normal_style), Paragraph(generation_time, normal_style)],
-        [Paragraph("<b>Generated By:</b>", normal_style), Paragraph(username, normal_style)],
-        [Paragraph("<b>System:</b>", normal_style), Paragraph(hostname, normal_style)],
-        [Paragraph("<b>Model Used:</b>", normal_style), Paragraph(model_used, normal_style)]
-    ]
+#     metadata = [
+#         [Paragraph("<b>Generated On:</b>", normal_style), Paragraph(generation_time, normal_style)],
+#         [Paragraph("<b>Generated By:</b>", normal_style), Paragraph(username, normal_style)],
+#         [Paragraph("<b>System:</b>", normal_style), Paragraph(hostname, normal_style)],
+#         [Paragraph("<b>Model Used:</b>", normal_style), Paragraph(model_used, normal_style)]
+#     ]
     
-    metadata_table = Table(metadata, colWidths=[1.5*inch, 4*inch])
-    metadata_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
-        ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightgrey)
-    ]))
+#     metadata_table = Table(metadata, colWidths=[1.5*inch, 4*inch])
+#     metadata_table.setStyle(TableStyle([
+#         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+#         ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+#         ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightgrey)
+#     ]))
     
-    content.append(metadata_table)
-    content.append(Spacer(1, 0.25*inch))
+#     content.append(metadata_table)
+#     content.append(Spacer(1, 0.25*inch))
     
-    # Add Customer Info
-    if 'customer' in rfp_data and rfp_data['customer']:
-        content.append(Paragraph("Customer Information", heading_style))
-        content.append(Paragraph(rfp_data['customer'], normal_style))
-        content.append(Spacer(1, 0.25*inch))
+#     # Add Customer Info
+#     if 'customer' in rfp_data and rfp_data['customer']:
+#         content.append(Paragraph("Customer Information", heading_style))
+#         content.append(Paragraph(rfp_data['customer'], normal_style))
+#         content.append(Spacer(1, 0.25*inch))
     
-    # Add Scope
-    if 'scope' in rfp_data and rfp_data['scope']:
-        content.append(Paragraph("Scope of Work", heading_style))
-        content.append(Paragraph(rfp_data['scope'], normal_style))
-        content.append(Spacer(1, 0.25*inch))
+#     # Add Scope
+#     if 'scope' in rfp_data and rfp_data['scope']:
+#         content.append(Paragraph("Scope of Work", heading_style))
+#         content.append(Paragraph(rfp_data['scope'], normal_style))
+#         content.append(Spacer(1, 0.25*inch))
     
-    # Add Requirements by category
-    if 'requirements' in rfp_data and rfp_data['requirements']:
-        content.append(Paragraph("Requirements", heading_style))
+#     # Add Requirements by category
+#     if 'requirements' in rfp_data and rfp_data['requirements']:
+#         content.append(Paragraph("Requirements", heading_style))
         
-        # Group requirements by category
-        reqs_by_category = {}
-        for req in rfp_data['requirements']:
-            cat = req.get('category', 'General')
-            if cat not in reqs_by_category:
-                reqs_by_category[cat] = []
-            reqs_by_category[cat].append(req)
+#         # Group requirements by category
+#         reqs_by_category = {}
+#         for req in rfp_data['requirements']:
+#             cat = req.get('category', 'General')
+#             if cat not in reqs_by_category:
+#                 reqs_by_category[cat] = []
+#             reqs_by_category[cat].append(req)
         
-        for category, reqs in reqs_by_category.items():
-            content.append(Paragraph(category, subheading_style))
+#         for category, reqs in reqs_by_category.items():
+#             content.append(Paragraph(category, subheading_style))
             
-            # Create table data with headers
-            table_data = [["Requirement", "Page"]]
-            for req in reqs:
-                description = req.get('description', 'No description')
-                page = req.get('page', 'N/A')
-                table_data.append([Paragraph(description, normal_style), page])
+#             # Create table data with headers
+#             table_data = [["Requirement", "Page"]]
+#             for req in reqs:
+#                 description = req.get('description', 'No description')
+#                 page = req.get('page', 'N/A')
+#                 table_data.append([Paragraph(description, normal_style), page])
             
-            # Create and style the table
-            req_table = Table(table_data, colWidths=[5*inch, 0.5*inch])
-            req_table.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
-                ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
-                ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
-                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
-            ]))
+#             # Create and style the table
+#             req_table = Table(table_data, colWidths=[5*inch, 0.5*inch])
+#             req_table.setStyle(TableStyle([
+#                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+#                 ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+#                 ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
+#                 ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
+#                 ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+#                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
+#             ]))
             
-            content.append(req_table)
-            content.append(Spacer(1, 0.15*inch))
+#             content.append(req_table)
+#             content.append(Spacer(1, 0.15*inch))
         
-        content.append(Spacer(1, 0.1*inch))
+#         content.append(Spacer(1, 0.1*inch))
     
-    # Add Tasks
-    if 'tasks' in rfp_data and rfp_data['tasks']:
-        content.append(Paragraph("Tasks", heading_style))
+#     # Add Tasks
+#     if 'tasks' in rfp_data and rfp_data['tasks']:
+#         content.append(Paragraph("Tasks", heading_style))
         
-        table_data = [["Task", "Description", "Page"]]
-        for task in rfp_data['tasks']:
-            title = task.get('title', 'Task')
-            description = task.get('description', 'No description')
-            page = task.get('page', 'N/A')
-            table_data.append([
-                Paragraph(title, normal_style),
-                Paragraph(description, normal_style),
-                page
-            ])
+#         table_data = [["Task", "Description", "Page"]]
+#         for task in rfp_data['tasks']:
+#             title = task.get('title', 'Task')
+#             description = task.get('description', 'No description')
+#             page = task.get('page', 'N/A')
+#             table_data.append([
+#                 Paragraph(title, normal_style),
+#                 Paragraph(description, normal_style),
+#                 page
+#             ])
         
-        task_table = Table(table_data, colWidths=[1.5*inch, 3.5*inch, 0.5*inch])
-        task_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
-            ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
-            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
-        ]))
+#         task_table = Table(table_data, colWidths=[1.5*inch, 3.5*inch, 0.5*inch])
+#         task_table.setStyle(TableStyle([
+#             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+#             ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+#             ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
+#             ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
+#             ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+#             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
+#         ]))
         
-        content.append(task_table)
-        content.append(Spacer(1, 0.25*inch))
+#         content.append(task_table)
+#         content.append(Spacer(1, 0.25*inch))
     
-    # Add Key Dates
-    if 'dates' in rfp_data and rfp_data['dates']:
-        content.append(Paragraph("Key Dates", heading_style))
+#     # Add Key Dates
+#     if 'dates' in rfp_data and rfp_data['dates']:
+#         content.append(Paragraph("Key Dates", heading_style))
         
-        table_data = [["Event", "Date", "Page"]]
-        for date_item in rfp_data['dates']:
-            event = date_item.get('event', 'Event')
-            date = date_item.get('date', 'No date')
-            page = date_item.get('page', 'N/A')
-            table_data.append([
-                Paragraph(event, normal_style),
-                Paragraph(date, normal_style),
-                page
-            ])
+#         table_data = [["Event", "Date", "Page"]]
+#         for date_item in rfp_data['dates']:
+#             event = date_item.get('event', 'Event')
+#             date = date_item.get('date', 'No date')
+#             page = date_item.get('page', 'N/A')
+#             table_data.append([
+#                 Paragraph(event, normal_style),
+#                 Paragraph(date, normal_style),
+#                 page
+#             ])
         
-        date_table = Table(table_data, colWidths=[2.5*inch, 2.5*inch, 0.5*inch])
-        date_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
-            ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
-            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
-        ]))
+#         date_table = Table(table_data, colWidths=[2.5*inch, 2.5*inch, 0.5*inch])
+#         date_table.setStyle(TableStyle([
+#             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+#             ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+#             ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
+#             ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
+#             ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+#             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
+#         ]))
         
-        content.append(date_table)
+#         content.append(date_table)
     
-    # Add a footer with page numbers
-    def add_page_number(canvas, doc):
-        page_num = canvas.getPageNumber()
-        text = f"Page {page_num}"
-        canvas.setFont("Helvetica", 9)
-        canvas.drawRightString(7.5*inch, 0.5*inch, text)
-        canvas.drawString(0.5*inch, 0.5*inch, f"RFP Analysis: {rfp_name[:30]}")
+#     # Add a footer with page numbers
+#     def add_page_number(canvas, doc):
+#         page_num = canvas.getPageNumber()
+#         text = f"Page {page_num}"
+#         canvas.setFont("Helvetica", 9)
+#         canvas.drawRightString(7.5*inch, 0.5*inch, text)
+#         canvas.drawString(0.5*inch, 0.5*inch, f"RFP Analysis: {rfp_name[:30]}")
     
-    # Build the PDF
-    doc.build(content, onFirstPage=add_page_number, onLaterPages=add_page_number)
+#     # Build the PDF
+#     doc.build(content, onFirstPage=add_page_number, onLaterPages=add_page_number)
     
-    return pdf_path
+#     return pdf_path
 
-def generate_report_filename(rfp_name: str, model_used: str = "gpt-4o") -> str:
-    """
-    Generate a well-formatted filename for the PDF report
+# def generate_report_filename(rfp_name: str, model_used: str = "gpt-4o") -> str:
+#     """
+#     Generate a well-formatted filename for the PDF report
     
-    Args:
-        rfp_name: Name of the RFP document
-        model_used: The LLM model used for analysis
+#     Args:
+#         rfp_name: Name of the RFP document
+#         model_used: The LLM model used for analysis
         
-    Returns:
-        A formatted filename string
-    """
-    # Get current timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#     Returns:
+#         A formatted filename string
+#     """
+#     # Get current timestamp
+#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # Get username from session if authenticated
-    if st.session_state.user:
-        username = st.session_state.user['fullname'].replace(" ", "_")
-    else:
-        try:
-            username = getpass.getuser()
-        except:
-            username = "user"
+#     # Get username from session if authenticated
+#     if st.session_state.user:
+#         username = st.session_state.user['fullname'].replace(" ", "_")
+#     else:
+#         try:
+#             username = getpass.getuser()
+#         except:
+#             username = "user"
     
-    # Clean the RFP name to make it filename-safe
-    # Remove file extension if present
-    if "." in rfp_name:
-        rfp_name = rfp_name.rsplit(".", 1)[0]
+#     # Clean the RFP name to make it filename-safe
+#     # Remove file extension if present
+#     if "." in rfp_name:
+#         rfp_name = rfp_name.rsplit(".", 1)[0]
     
-    # Replace spaces and special characters
-    clean_rfp_name = "".join(c if c.isalnum() else "_" for c in rfp_name)
-    clean_rfp_name = clean_rfp_name[:30]  # Limit length
+#     # Replace spaces and special characters
+#     clean_rfp_name = "".join(c if c.isalnum() else "_" for c in rfp_name)
+#     clean_rfp_name = clean_rfp_name[:30]  # Limit length
     
-    # Clean model name
-    clean_model = model_used.replace("-", "").replace(".", "")
+#     # Clean model name
+#     clean_model = model_used.replace("-", "").replace(".", "")
     
-    # Format: RFP_Analysis_[RFP_NAME]_[MODEL]_[USERNAME]_[TIMESTAMP].pdf
-    filename = f"RFP_Analysis_{clean_rfp_name}_{clean_model}_{username}_{timestamp}.pdf"
+#     # Format: RFP_Analysis_[RFP_NAME]_[MODEL]_[USERNAME]_[TIMESTAMP].pdf
+#     filename = f"RFP_Analysis_{clean_rfp_name}_{clean_model}_{username}_{timestamp}.pdf"
     
-    return filename
+#     return filename
 
 def display_statistics_cards(rfp_data):
     """Display professional metric cards with clear styling"""
@@ -1242,38 +1243,38 @@ def show_no_rfp_screen():
         # Show document management interface
         render_document_management(document_storage, COLORS)
 
-def process_pdf_locally(pdf_path, selected_sections):
-    """Process PDF locally when Lambda function is unavailable"""
-    try:
-        logger.info(f"Processing PDF locally: {pdf_path}")
-        st.info("Using local processing as Lambda function is unavailable...")
+# def process_pdf_locally(pdf_path, selected_sections):
+#     """Process PDF locally when Lambda function is unavailable"""
+#     try:
+#         logger.info(f"Processing PDF locally: {pdf_path}")
+#         st.info("Using local processing as Lambda function is unavailable...")
         
-        # Save the user's OpenAI API key to environment for the local processor to use
-        if "openai_api_key" in st.session_state and st.session_state.openai_api_key:
-            os.environ["OPENAI_API_KEY"] = st.session_state.openai_api_key
-            debug_api_key(os.environ.get("OPENAI_API_KEY", ""), "Environment in process_pdf_locally")
-        else:
-            st.error("OpenAI API Key is required for local processing. Please enter it in the sidebar.")
-            return None
+#         # Save the user's OpenAI API key to environment for the local processor to use
+#         if "openai_api_key" in st.session_state and st.session_state.openai_api_key:
+#             os.environ["OPENAI_API_KEY"] = st.session_state.openai_api_key
+#             debug_api_key(os.environ.get("OPENAI_API_KEY", ""), "Environment in process_pdf_locally")
+#         else:
+#             st.error("OpenAI API Key is required for local processing. Please enter it in the sidebar.")
+#             return None
         
-        # Process the PDF using the local function
-        result = process_rfp.process_pdf(pdf_path)
+#         # Process the PDF using the local function
+#         result = process_rfp.process_pdf(pdf_path)
         
-        # Filter by sections if needed
-        if "all" not in selected_sections:
-            # Simple filtering mechanism - can be enhanced based on your needs
-            if "requirements" in result and "requirements" not in selected_sections:
-                result["requirements"] = []
-            if "tasks" in result and "tasks" not in selected_sections:
-                result["tasks"] = []
-            if "dates" in result and "dates" not in selected_sections:
-                result["dates"] = []
+#         # Filter by sections if needed
+#         if "all" not in selected_sections:
+#             # Simple filtering mechanism - can be enhanced based on your needs
+#             if "requirements" in result and "requirements" not in selected_sections:
+#                 result["requirements"] = []
+#             if "tasks" in result and "tasks" not in selected_sections:
+#                 result["tasks"] = []
+#             if "dates" in result and "dates" not in selected_sections:
+#                 result["dates"] = []
         
-        logger.info("Local processing complete")
-        return result
-    except Exception as e:
-        logger.error(f"Local processing failed: {str(e)}")
-        raise Exception(f"Failed to process PDF locally: {str(e)}")
+#         logger.info("Local processing complete")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Local processing failed: {str(e)}")
+#         raise Exception(f"Failed to process PDF locally: {str(e)}")
 
 def process_uploaded_pdf(uploaded_file, aws_region, s3_bucket, s3_key, lambda_url, selected_sections):
     """Process the uploaded PDF and return structured data"""
