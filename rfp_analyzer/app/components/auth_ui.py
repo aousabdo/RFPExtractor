@@ -585,14 +585,14 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
             #                 logout(auth_instance)
             #                 st.rerun()
                             
-            # Render the main application content (will show admin panel based on session state)
+            # # Render the main application content (will show admin panel based on session state)
             page_content_function()
         else:
             # On main page or others
             if st.session_state.page != "main":
                 st.session_state.page = "main"
             
-            # Add a simple user display in the top right
+            # # Add a simple user display in the top right
             # if st.session_state.user:
             #     user_fullname = st.session_state.user.get('fullname', 'User')
             #     user_initial = user_fullname[0].upper()
@@ -613,7 +613,7 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
             #                 logout(auth_instance)
             #                 st.rerun()
             
-            # Render the main application content
+            # # Render the main application content
             page_content_function()
     else:
         # User is not authenticated, show login or register form
