@@ -439,6 +439,9 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
     Returns:
         Path to the generated PDF file
     """
+    # Import reportlab colors
+    from reportlab.lib import colors as reportlab_colors
+    
     # Create a temporary file for the PDF
     with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
         pdf_path = tmp.name
@@ -452,7 +455,7 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
         'Title',
         parent=styles['Heading1'],
         fontSize=16,
-        textColor=colors.blue,
+        textColor=reportlab_colors.blue,
         spaceAfter=12
     )
     
@@ -460,7 +463,7 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
         'Heading',
         parent=styles['Heading2'],
         fontSize=14,
-        textColor=colors.blue,
+        textColor=reportlab_colors.blue,
         spaceAfter=10,
         spaceBefore=10
     )
@@ -469,7 +472,7 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
         'Subheading',
         parent=styles['Heading3'],
         fontSize=12,
-        textColor=colors.darkblue,
+        textColor=reportlab_colors.darkblue,
         spaceAfter=8
     )
     
@@ -505,8 +508,8 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
     metadata_table = Table(metadata, colWidths=[1.5*inch, 4*inch])
     metadata_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey)
+        ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+        ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightgrey)
     ]))
     
     content.append(metadata_table)
@@ -550,9 +553,9 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
             req_table = Table(table_data, colWidths=[5*inch, 0.5*inch])
             req_table.setStyle(TableStyle([
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+                ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
+                ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
                 ('ALIGN', (1, 0), (1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
             ]))
@@ -580,9 +583,9 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
         task_table = Table(table_data, colWidths=[1.5*inch, 3.5*inch, 0.5*inch])
         task_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+            ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
             ('ALIGN', (2, 0), (2, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
         ]))
@@ -608,9 +611,9 @@ def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str
         date_table = Table(table_data, colWidths=[2.5*inch, 2.5*inch, 0.5*inch])
         date_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, reportlab_colors.lightgrey),
+            ('BACKGROUND', (0, 0), (-1, 0), reportlab_colors.lightblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), reportlab_colors.whitesmoke),
             ('ALIGN', (2, 0), (2, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold')
         ]))
@@ -1549,14 +1552,67 @@ def main_content():
         # Process uploaded file
         if uploaded_file is not None:
             # Process button
-            st.button(
-                "Analyze Document", 
-                key="analyze_button", 
-                use_container_width=True, 
-                type="primary",
-                on_click=process_uploaded_pdf, 
-                args=(uploaded_file, aws_region, s3_bucket, s3_key, lambda_url, selected_sections)
-            )
+            if st.button("Analyze Document", key="analyze_button", use_container_width=True, type="primary"):
+                with st.spinner("Analyzing document..."):
+                    # Get user_id from session state if available
+                    user_id = st.session_state.user.get('user_id') if "user" in st.session_state and st.session_state.user else "anonymous"
+                    
+                    # Process the document
+                    s3_key = f"rfp_documents/{user_id}/{uuid.uuid4()}/{uploaded_file.name}"
+                    
+                    # Call the processing function and capture the result
+                    rfp_data = process_uploaded_pdf(
+                        uploaded_file, 
+                        aws_region, 
+                        s3_bucket, 
+                        s3_key, 
+                        lambda_url,
+                        selected_sections
+                    )
+                    
+                    # If we get valid data back, store it in session state
+                    if rfp_data and isinstance(rfp_data, dict):
+                        # Update session state with new document data
+                        st.session_state.current_rfp = rfp_data
+                        st.session_state.rfp_name = uploaded_file.name
+                        
+                        # Store document in database
+                        try:
+                            # Save uploaded file temporarily for storage
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                                tmp.write(uploaded_file.getvalue())
+                                pdf_path = tmp.name
+                            
+                            # Store in MongoDB and S3
+                            document_id = document_storage.store_document(
+                                user_id,
+                                pdf_path,
+                                uploaded_file.name,
+                                uploaded_file.getvalue(),
+                                {"processing_method": "Server-side Processing"}
+                            )
+                            
+                            # Store the document ID in session state
+                            if document_id:
+                                st.session_state.current_document_id = document_id
+                                
+                                # Update the analysis results in database
+                                document_storage.update_analysis_results(document_id, rfp_data)
+                                
+                                # Show success message
+                                st.success(f"Document analyzed and stored successfully")
+                            
+                            # Clean up temp file
+                            os.unlink(pdf_path)
+                            
+                        except Exception as e:
+                            logger.error(f"Error storing document: {str(e)}")
+                            st.error(f"Error storing document: {str(e)}")
+                        
+                        # Force a rerun to show the RFP data
+                        st.rerun()
+                    else:
+                        st.error("Failed to process the RFP document. Please try again.")
         
         st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
         
