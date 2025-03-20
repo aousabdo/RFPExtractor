@@ -227,8 +227,37 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if context:
             logger.info(f"Remaining time: {context.get_remaining_time_in_millis()/1000} seconds")
 
+        # Check if the event is from a Lambda URL (has 'body' field)
+        if 'body' in event and isinstance(event.get('body'), str):
+            logger.info("Processing Lambda URL request format")
+            try:
+                # Parse body from JSON string to dict
+                body = json.loads(event['body'])
+                
+                # Extract parameters from body
+                bucket = body.get('s3_bucket')
+                key = body.get('s3_key')
+                sections = body.get('sections', ['all'])
+                
+                logger.info(f"Extracted from body: bucket={bucket}, key={key}, sections={sections}")
+            except Exception as e:
+                error_message = f"Failed to parse request body: {str(e)}"
+                logger.error(error_message)
+                return {
+                    'statusCode': 400,
+                    'body': json.dumps({
+                        'error': error_message
+                    })
+                }
+        else:
+            # Direct Lambda invocation - parameters at top level
+            logger.info("Processing direct Lambda invocation format")
+            bucket = event.get('s3_bucket')
+            key = event.get('s3_key')
+            sections = event.get('sections', ['all'])
+
         # Validate input
-        if 's3_bucket' not in event or 's3_key' not in event:
+        if not bucket or not key:
             logger.error("Missing required parameters: s3_bucket and s3_key")
             return {
                 'statusCode': 400,
@@ -237,12 +266,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 })
             }
 
-        # Get parameters
-        bucket = event['s3_bucket']
-        key = event['s3_key']
-        
         # Handle sections parameter with validation
-        sections = event.get('sections')
         if sections is not None:
             if not isinstance(sections, (str, list)):
                 logger.error(f"Invalid sections parameter type: {type(sections)}")
