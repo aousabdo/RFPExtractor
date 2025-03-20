@@ -251,15 +251,15 @@ def load_css():
     }}
     
     /* Hide default Streamlit elements */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stDeployButton {visibility: hidden !important;}
-    header {visibility: hidden;}
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    .stDeployButton {{visibility: hidden !important;}}
+    header {{visibility: hidden;}}
     
     /* Remove extra whitespace at top */
-    .stApp {
+    .stApp {{
         margin-top: -4rem;
-    }
+    }}
     
     .main {{
         color: {colors["text"]};
