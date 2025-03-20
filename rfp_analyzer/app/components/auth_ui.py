@@ -565,25 +565,25 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
             user_profile(auth_instance, colors)
         elif st.session_state.page == "admin":
             # Add a simple user display in the top right
-            if st.session_state.user:
-                user_fullname = st.session_state.user.get('fullname', 'User')
-                user_initial = user_fullname[0].upper()
+            # if st.session_state.user:
+            #     user_fullname = st.session_state.user.get('fullname', 'User')
+            #     user_initial = user_fullname[0].upper()
                 
-                # Create header with user info
-                cols = st.columns([15, 3])
-                with cols[1]:
-                    user_menu = st.container()
-                    user_menu_col1, user_menu_col2 = st.columns([1, 3])
-                    with user_menu_col1:
-                        if st.button(f"{user_initial}", key="user_menu_button", 
-                                    help="Account Settings",
-                                    use_container_width=True):
-                            st.session_state.page = "profile"
-                            st.rerun()
-                    with user_menu_col2:
-                        if st.button("Sign Out", key="sign_out_button", use_container_width=True):
-                            logout(auth_instance)
-                            st.rerun()
+            #     # Create header with user info
+            #     cols = st.columns([15, 3])
+            #     with cols[1]:
+            #         user_menu = st.container()
+            #         user_menu_col1, user_menu_col2 = st.columns([1, 3])
+            #         with user_menu_col1:
+            #             if st.button(f"{user_initial}", key="user_menu_button", 
+            #                         help="Account Settings",
+            #                         use_container_width=True):
+            #                 st.session_state.page = "profile"
+            #                 st.rerun()
+            #         with user_menu_col2:
+            #             if st.button("Sign Out", key="sign_out_button", use_container_width=True):
+            #                 logout(auth_instance)
+            #                 st.rerun()
                             
             # Render the main application content (will show admin panel based on session state)
             page_content_function()
@@ -593,25 +593,25 @@ def require_auth(auth_instance, colors: Dict[str, str], page_content_function: C
                 st.session_state.page = "main"
             
             # Add a simple user display in the top right
-            if st.session_state.user:
-                user_fullname = st.session_state.user.get('fullname', 'User')
-                user_initial = user_fullname[0].upper()
+            # if st.session_state.user:
+            #     user_fullname = st.session_state.user.get('fullname', 'User')
+            #     user_initial = user_fullname[0].upper()
                 
-                # Create header with user info
-                cols = st.columns([15, 3])
-                with cols[1]:
-                    user_menu = st.container()
-                    user_menu_col1, user_menu_col2 = st.columns([1, 3])
-                    with user_menu_col1:
-                        if st.button(f"{user_initial}", key="user_menu_button", 
-                                    help="Account Settings",
-                                    use_container_width=True):
-                            st.session_state.page = "profile"
-                            st.rerun()
-                    with user_menu_col2:
-                        if st.button("Sign Out", key="sign_out_button", use_container_width=True):
-                            logout(auth_instance)
-                            st.rerun()
+            #     # Create header with user info
+            #     cols = st.columns([15, 3])
+            #     with cols[1]:
+            #         user_menu = st.container()
+            #         user_menu_col1, user_menu_col2 = st.columns([1, 3])
+            #         with user_menu_col1:
+            #             if st.button(f"{user_initial}", key="user_menu_button", 
+            #                         help="Account Settings",
+            #                         use_container_width=True):
+            #                 st.session_state.page = "profile"
+            #                 st.rerun()
+            #         with user_menu_col2:
+            #             if st.button("Sign Out", key="sign_out_button", use_container_width=True):
+            #                 logout(auth_instance)
+            #                 st.rerun()
             
             # Render the main application content
             page_content_function()

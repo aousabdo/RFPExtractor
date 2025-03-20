@@ -31,7 +31,7 @@ from rfp_analyzer.core.storage.document_storage import DocumentStorage
 from rfp_analyzer.core.storage.db_connection import get_mongodb_connection
 from rfp_analyzer.core.auth.user_auth import UserAuth
 from rfp_analyzer.app.components import auth_ui
-from rfp_analyzer.app.components.auth_ui import require_auth, init_auth_session_state
+from rfp_analyzer.app.components.auth_ui import require_auth, init_auth_session_state, logout
 from rfp_analyzer.app.components.document_ui import render_document_management, load_document
 from rfp_analyzer.app.components import admin_panel
 from rfp_analyzer.app.components.admin_panel import render_admin_panel
@@ -1472,7 +1472,7 @@ def main_content():
         has_env_api_key = bool(openai_api_key)
         
         # Option to use own API key
-        use_own_api_key = st.checkbox("Use my own API key", 
+        use_own_api_key = st.checkbox("Use my own OpenAI API key", 
                                      value=not has_env_api_key,
                                      help="Check this to provide your own OpenAI API key")
         
@@ -1636,7 +1636,38 @@ def main_content():
                 st.session_state.show_document_library = True
                 st.rerun()
         
-        st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+        # st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+
+        # Add a divider
+        st.markdown("<hr style='margin: 15px 0; opacity: 0.3;'>", unsafe_allow_html=True)
+
+        # User info and account controls at sidebar bottom
+        if "user" in st.session_state and st.session_state.user:
+            # Show user info
+            user_fullname = st.session_state.user.get('fullname', 'User')
+            user_email = st.session_state.user.get('email', '')
+            
+            st.markdown(f"""
+            <div style="font-size: 0.8rem; color: {colors['text_muted']}; margin-bottom: 10px;">
+                <span style="opacity: 0.7;">Logged in as:</span><br/>
+                <span style="font-weight: 500;">{user_fullname}</span><br/>
+                <span style="font-size: 0.75rem; opacity: 0.8;">{user_email}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Create two columns for the buttons
+            profile_col, signout_col = st.columns(2)
+            
+            with profile_col:
+                if st.button("Profile", key="sidebar_profile_btn", use_container_width=True):
+                    st.session_state.page = "profile"
+                    st.rerun()
+                    
+            with signout_col:
+                if st.button("Sign Out", key="sidebar_signout_btn", use_container_width=True):
+                    logout(auth_instance)
+                    st.rerun()
+
     
     # Show admin panel if admin user and on admin page
     if is_admin and st.session_state.page == "admin":
