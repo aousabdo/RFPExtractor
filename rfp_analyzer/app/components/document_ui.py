@@ -205,6 +205,19 @@ def render_timeline(document_storage, user_id, colors, days=30, limit=50):
 
 def render_document_grid(documents, document_storage, colors):
     """Render documents in a grid view"""
+    # Add a search box at the top
+    doc_search = st.text_input("🔍 Search documents", key="grid_doc_search", placeholder="Search by name or content...")
+    
+    # Filter documents if search is active
+    if doc_search:
+        filtered_docs = [doc for doc in documents if doc_search.lower() in doc.get("original_filename", "").lower()]
+        if not filtered_docs:
+            st.info(f"No documents found matching '{doc_search}'")
+        documents = filtered_docs
+    
+    # Display document count
+    st.markdown(f"**Showing {len(documents)} documents**")
+    
     # Create a 3-column grid
     cols = st.columns(3)
     
@@ -231,6 +244,7 @@ def render_document_grid(documents, document_storage, colors):
                 margin-bottom: 0.75rem;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 border-top: 4px solid var(--primary-color);
+                height: 100%;
             }
             </style>
             """, unsafe_allow_html=True)
@@ -244,21 +258,28 @@ def render_document_grid(documents, document_storage, colors):
             # Status badge
             st.markdown(get_status_badge(status), unsafe_allow_html=True)
             
-            # Metadata with minimal HTML
-            uploaded_text = f"Uploaded: {format_timestamp(uploaded_at)}"
-            size_text = f"Size: {format_file_size(file_size)}"
+            # Metadata with improved layout
+            uploaded_text = f"📅 {format_timestamp(uploaded_at)}"
+            size_text = f"📏 {format_file_size(file_size)}"
             
             st.markdown(f'<span style="font-size: 0.8rem; color: {colors["text_muted"]};">{uploaded_text}<br>{size_text}</span>', unsafe_allow_html=True)
             
-            # End of card container
-            st.markdown('</div>', unsafe_allow_html=True)
+            # Actions row
+            col1, col2, col3 = st.columns(3)
             
-            # Use native Streamlit buttons - remove the view button
-            button_cols = st.columns(2)
-            with button_cols[0]:
-                st.button("⬇️ Download", key=f"download_grid_{doc_id}", on_click=download_document, args=(doc_id, document_storage), use_container_width=True)
-            with button_cols[1]:
-                st.button("🗑️ Delete", key=f"delete_grid_{doc_id}", on_click=delete_document, args=(doc_id,), use_container_width=True)
+            # Add View/Load button with improved styling
+            if status == "processed" and col1.button("👁️", key=f"view_{doc_id}_{i}", help="View/Load Document"):
+                load_document(doc_id, document_storage)
+            
+            # Download button
+            if col2.button("⬇️", key=f"download_{doc_id}_{i}", help="Download Document"):
+                download_document(doc_id, document_storage)
+            
+            # Delete button
+            if col3.button("🗑️", key=f"delete_{doc_id}_{i}", help="Delete Document"):
+                delete_document(doc_id)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
 
 def view_document(doc, document_storage):
     """Set the current document to view"""
@@ -331,6 +352,115 @@ def delete_document(doc_id):
             st.session_state.pending_delete_doc = doc_id
     except Exception as e:
         st.session_state.delete_error = f"Error preparing document for deletion: {str(e)}"
+
+def load_document(doc_id, document_storage):
+    """Load a document from storage into the current session"""
+    try:
+        # Retrieve the document
+        document = document_storage.get_document_by_id(doc_id)
+        
+        if not document:
+            st.error("Document not found.")
+            return
+        
+        # Check if document has been processed
+        if document.get("status") != "processed" or not document.get("analysis_results"):
+            st.warning("This document hasn't been fully processed yet. Please wait for processing to complete.")
+            return
+        
+        # Update session state
+        st.session_state.current_rfp = document.get("analysis_results")
+        st.session_state.rfp_name = document.get("original_filename")
+        st.session_state.current_document_id = doc_id
+        
+        # Add view event to document history
+        document_storage.add_document_event(
+            doc_id, 
+            "view", 
+            {"action": "load", "timestamp": datetime.utcnow()}
+        )
+        
+        # Show success message
+        st.success(f"Document '{document.get('original_filename')}' loaded successfully!")
+        
+        # Force a rerun to update the UI
+        st.rerun()
+        
+    except Exception as e:
+        logger.error(f"Error loading document: {str(e)}")
+        st.error(f"Error loading document: {str(e)}")
+
+def render_document_list(documents, document_storage, colors):
+    """Render documents in a list view"""
+    # Add a search box at the top
+    doc_search = st.text_input("🔍 Search documents", key="list_doc_search", placeholder="Search by name or content...")
+    
+    # Filter documents if search is active
+    if doc_search:
+        filtered_docs = [doc for doc in documents if doc_search.lower() in doc.get("original_filename", "").lower()]
+        if not filtered_docs:
+            st.info(f"No documents found matching '{doc_search}'")
+        documents = filtered_docs
+    
+    # Display document count
+    st.markdown(f"**Showing {len(documents)} documents**")
+    
+    for i, doc in enumerate(documents):
+        # Get document info
+        doc_id = doc.get("_id")
+        filename = doc.get("original_filename", "Unnamed Document")
+        uploaded_at = doc.get("uploaded_at")
+        status = doc.get("status", "unknown")
+        file_size = doc.get("file_size")
+        category = doc.get("category", "")
+        
+        # Format upload date and time more clearly
+        upload_date = format_timestamp(uploaded_at)
+        
+        # Create a card for each document with improved layout
+        st.markdown(f"""
+        <div style="
+            background-color: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-left: 4px solid {colors['primary']};
+            position: relative;
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="flex-grow: 1;">
+                    <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.3rem;">{filename}</div>
+                    <div style="display: flex; align-items: center; margin-bottom: 0.3rem;">
+                        <span style="color: {colors['text_muted']}; font-size: 0.85rem; margin-right: 0.8rem;">
+                            <span style="margin-right: 0.3rem;">📅</span> {upload_date}
+                        </span>
+                        <span style="color: {colors['text_muted']}; font-size: 0.85rem; margin-right: 0.8rem;">
+                            <span style="margin-right: 0.3rem;">📏</span> {format_file_size(file_size)}
+                        </span>
+                        <span>
+                            {get_status_badge(status)}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Action buttons in a more compact layout
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
+        
+        # Add View/Load button with enhanced styling
+        if status == "processed" and col1.button("👁️ View/Load", key=f"view_list_{doc_id}_{i}", use_container_width=True):
+            load_document(doc_id, document_storage)
+        
+        # Download button
+        if col2.button("⬇️ Download", key=f"download_list_{doc_id}_{i}", use_container_width=True):
+            download_document(doc_id, document_storage)
+        
+        # Delete button
+        if col3.button("🗑️ Delete", key=f"delete_list_{doc_id}_{i}", use_container_width=True):
+            delete_document(doc_id)
 
 def render_document_management(document_storage: DocumentStorage, colors: Dict[str, str]):
     """
@@ -490,170 +620,94 @@ def render_document_management(document_storage: DocumentStorage, colors: Dict[s
             </div>
             """, unsafe_allow_html=True)
         
-        # Document filter and search controls
-        filter_col1, filter_col2, filter_col3, filter_col4 = st.columns([2, 2, 2, 1])
-        
-        with filter_col1:
-            # Sort options
-            sort_options = {
-                "uploaded_at": "Upload Date",
-                "original_filename": "Filename",
-                "file_size": "File Size",
-                "status": "Status"
-            }
-            sort_by = st.selectbox(
-                "Sort by", 
-                options=list(sort_options.keys()),
-                format_func=lambda x: sort_options[x],
-                index=list(sort_options.keys()).index(st.session_state.doc_sort_by)
-            )
-            st.session_state.doc_sort_by = sort_by
-        
-        with filter_col2:
-            # Status filter
-            status_options = {
-                "all": "All Statuses", 
-                "uploaded": "Uploaded", 
-                "processing": "Processing", 
-                "processed": "Processed", 
-                "error": "Error"
-            }
-            status_filter = st.selectbox(
-                "Status",
-                options=list(status_options.keys()),
-                format_func=lambda x: status_options[x],
-                index=0 if st.session_state.doc_status_filter is None else list(status_options.keys()).index(st.session_state.doc_status_filter)
-            )
-            st.session_state.doc_status_filter = None if status_filter == "all" else status_filter
-        
-        with filter_col3:
-            # Search box
-            search_query = st.text_input("Search", value=st.session_state.doc_search_query, placeholder="Search by filename...")
-            st.session_state.doc_search_query = search_query
-        
-        with filter_col4:
-            # View toggle (list/grid)
-            view_options = {"list": "List", "grid": "Grid"}
-            view_type = st.selectbox(
-                "View",
-                options=list(view_options.keys()),
-                format_func=lambda x: view_options[x],
-                index=0 if st.session_state.doc_view_type == "list" else 1
-            )
-            st.session_state.doc_view_type = view_type
-            
-            # Sort order toggle (hidden in a checkbox)
-            sort_order = st.checkbox("Descending order", value=(st.session_state.doc_sort_order == -1))
-            st.session_state.doc_sort_order = -1 if sort_order else 1
-        
-        # Date range filter (collapsible)
-        with st.expander("Date Filter", expanded=False):
-            date_col1, date_col2 = st.columns(2)
-            
-            with date_col1:
-                start_date = st.date_input("From", value=None)
-            with date_col2:
-                end_date = st.date_input("To", value=None)
-            
-            if start_date or end_date:
-                date_range = {}
-                if start_date:
-                    date_range["start"] = datetime.combine(start_date, datetime.min.time())
-                if end_date:
-                    date_range["end"] = datetime.combine(end_date, datetime.max.time())
-                st.session_state.doc_date_range = date_range
-            else:
-                st.session_state.doc_date_range = None
-        
-        # Fetch documents based on filters
+        # Get documents for the user based on the current filters
         documents = document_storage.get_documents_for_user(
             user_id=user_id,
             sort_by=st.session_state.doc_sort_by,
             sort_order=st.session_state.doc_sort_order,
             status_filter=st.session_state.doc_status_filter,
-            date_range=st.session_state.doc_date_range,
-            search_query=st.session_state.doc_search_query,
+            search_query=st.session_state.doc_search_query if st.session_state.doc_search_query else None,
             category=st.session_state.doc_category
         )
         
-        if not documents:
-            st.info("No documents found matching your criteria. Try adjusting your filters or upload new documents.")
-            return
+        # Add filter and search controls
+        filter_cols = st.columns([2, 2, 2, 2])
         
-        # Render documents based on selected view
-        if st.session_state.doc_view_type == "grid":
+        with filter_cols[0]:
+            # View type toggle
+            view_options = {"List": "list", "Grid": "grid"}
+            view_type = st.selectbox(
+                "View", 
+                options=list(view_options.keys()),
+                index=0 if st.session_state.doc_view_type == "list" else 1,
+                key="view_type_select"
+            )
+            st.session_state.doc_view_type = view_options[view_type]
+        
+        with filter_cols[1]:
+            # Sort by dropdown
+            sort_options = {
+                "Upload Date": "uploaded_at",
+                "Name": "original_filename",
+                "Size": "file_size",
+                "Status": "status"
+            }
+            sort_by = st.selectbox(
+                "Sort by", 
+                options=list(sort_options.keys()),
+                index=list(sort_options.values()).index(st.session_state.doc_sort_by) 
+                      if st.session_state.doc_sort_by in sort_options.values() else 0,
+                key="sort_by_select"
+            )
+            st.session_state.doc_sort_by = sort_options[sort_by]
+        
+        with filter_cols[2]:
+            # Status filter
+            status_options = {
+                "All": None,
+                "Uploaded": "uploaded",
+                "Processing": "processing",
+                "Processed": "processed",
+                "Error": "error"
+            }
+            status_filter = st.selectbox(
+                "Status", 
+                options=list(status_options.keys()),
+                index=0 if st.session_state.doc_status_filter is None else 
+                    list(status_options.values()).index(st.session_state.doc_status_filter) 
+                    if st.session_state.doc_status_filter in status_options.values() else 0,
+                key="status_filter_select"
+            )
+            st.session_state.doc_status_filter = status_options[status_filter]
+        
+        with filter_cols[3]:
+            # Search box
+            search_query = st.text_input(
+                "Search", 
+                value=st.session_state.doc_search_query,
+                key="doc_search_input"
+            )
+            if search_query != st.session_state.doc_search_query:
+                st.session_state.doc_search_query = search_query
+                # Trigger search by rerunning
+                st.rerun()
+        
+        # Show documents based on view type
+        st.markdown(f"### Your Documents")
+        
+        # Check if documents were found
+        if not documents:
+            # Show a message when no documents are found
+            st.info("No documents found. Upload a document to get started or adjust your filters.")
+        elif st.session_state.doc_view_type == "grid":
+            # Grid view
             render_document_grid(documents, document_storage, colors)
         else:
             # List view
-            for doc in documents:
-                # Get document information
-                doc_id = doc.get("_id")
-                filename = doc.get("original_filename", "Unnamed Document")
-                uploaded_at = doc.get("uploaded_at")
-                status = doc.get("status", "unknown")
-                file_size = doc.get("file_size")
-                category = doc.get("category", "")
-                
-                # Create a container with styling for the card
-                with st.container():
-                    # Add CSS styling to the container
-                    st.markdown("""
-                    <style>
-                    .document-card {
-                        background-color: white;
-                        border-radius: 8px;
-                        padding: 1rem;
-                        margin-bottom: 0.75rem;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
-                    
-                    # Card container start
-                    st.markdown('<div class="document-card">', unsafe_allow_html=True)
-                    
-                    # Create columns for layout inside the card
-                    icon_col, content_col = st.columns([1, 10])
-                    
-                    # Icon in first column
-                    with icon_col:
-                        # Simple HTML for the icon only
-                        st.markdown(
-                            f'<div style="background-color: {colors["primary"]}20; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; text-align: center;">📄</div>',
-                            unsafe_allow_html=True
-                        )
-                    
-                    # Content in second column
-                    with content_col:
-                        # First row: Filename and status
-                        filename_col, status_col = st.columns([3, 1])
-                        
-                        with filename_col:
-                            st.markdown(f"**{filename}**")
-                        
-                        with status_col:
-                            # Status badge
-                            st.markdown(get_status_badge(status), unsafe_allow_html=True)
-                        
-                        # Second row: Metadata
-                        meta_text = f"Uploaded: {format_timestamp(uploaded_at)} • Size: {format_file_size(file_size)}"
-                        if category:
-                            meta_text += f' • <span style="background-color: {colors["primary"]}20; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem;">{category}</span>'
-                        
-                        st.markdown(f'<span style="font-size: 0.8rem; color: {colors["text_muted"]};">{meta_text}</span>', unsafe_allow_html=True)
-                    
-                    # Card container end
-                    st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Add buttons below the card - kept the same
-                action_cols = st.columns([1, 1, 4])  # Adjusted column widths
-                with action_cols[0]:
-                    st.button("⬇️ Download", key=f"download_{doc_id}", on_click=download_document, args=(doc_id, document_storage), use_container_width=True)
-                with action_cols[1]:
-                    st.button("🗑️ Delete", key=f"delete_{doc_id}", on_click=delete_document, args=(doc_id,), use_container_width=True)
+            render_document_list(documents, document_storage, colors)
     
     with tab2:
-        # Render timeline view
+        # Show timeline
         render_timeline(document_storage, user_id, colors)
     
     # Add some spacing at the bottom
