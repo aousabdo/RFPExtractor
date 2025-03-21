@@ -6,6 +6,7 @@ import logging
 from openai import OpenAI
 import boto3
 from typing import List, Dict, Any
+import streamlit as st
 
 # Import from config
 from rfp_analyzer.app.config import OPENAI_API_KEY

@@ -5,6 +5,7 @@ import logging
 from openai import OpenAI
 import boto3
 from typing import List, Dict, Any
+import streamlit as st
 
 # Configure logging
 logger = logging.getLogger(__name__)

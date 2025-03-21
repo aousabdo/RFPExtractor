@@ -1,6 +1,10 @@
 import os
 import logging
+import streamlit as st
 from openai import OpenAI
+
+# Import from config
+from rfp_analyzer.app.config import OPENAI_API_KEY as openai_api_key
 
 logger = logging.getLogger(__name__)
 
