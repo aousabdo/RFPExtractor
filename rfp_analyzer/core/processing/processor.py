@@ -124,8 +124,11 @@ class RFPProcessor:
             token_estimate = len(page_text) // 4  # Approximate token count
             
             if current_token_count + token_estimate > max_tokens:
-                logger.debug(f"Creating new chunk at page {page['page']} (token limit reached)")
-                chunks.append({"pages": current_chunk})
+                logger.debug(
+                    f"Creating new chunk at page {page['page']} (token limit reached)"
+                )
+                if current_chunk:  # avoid creating empty chunks
+                    chunks.append({"pages": current_chunk})
                 current_chunk = []
                 current_token_count = 0
                 
