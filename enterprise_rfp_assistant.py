@@ -81,7 +81,10 @@ def main_content():
             with st.spinner("Testing API key..."):
                 if st.session_state.get("openai_api_key"):
                     ok, msg = test_api_key(st.session_state.openai_api_key)
-                    st.success(msg) if ok else st.error(msg)
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
                 else:
                     st.error("No API key available to test")
         st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
