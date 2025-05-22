@@ -143,7 +143,7 @@ Create a `.env` file in the root directory with the following variables:
 ```
 OPENAI_API_KEY=your_api_key_here
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority&tls=true&tlsAllowInvalidCertificates=false
-MONGODB_DB=rfp_analyzer
+MONGODB_DB=rfp_db
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=secure_password
 S3_BUCKET=my-rfp-bucket

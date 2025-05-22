@@ -42,7 +42,7 @@ Use the provided deployment script:
 3. SSH into your EC2 instance to configure the environment variables:
    ```bash
    ssh -i your-ssh-key.pem ec2-user@your-ec2-host
-   cd rfp-analyzer
+   cd RFPExtractor
    nano .env
    ```
 
@@ -117,8 +117,8 @@ Use the provided deployment script:
 
 4. Clone the repository:
    ```bash
-   git clone https://github.com/aousabdo/RFPExtractor.git rfp-analyzer
-   cd rfp-analyzer
+   git clone https://github.com/aousabdo/RFPExtractor.git
+   cd RFPExtractor
    ```
 
 5. Create and configure the environment file:
@@ -136,8 +136,8 @@ Use the provided deployment script:
    
    **For Ubuntu:**
    ```bash
-   sudo cp nginx.conf /etc/nginx/sites-available/rfp_analyzer
-   sudo ln -s /etc/nginx/sites-available/rfp_analyzer /etc/nginx/sites-enabled/
+   sudo cp nginx.conf /etc/nginx/sites-available/rfp_extractor
+   sudo ln -s /etc/nginx/sites-available/rfp_extractor /etc/nginx/sites-enabled/
    sudo rm /etc/nginx/sites-enabled/default
    sudo nginx -t
    sudo systemctl reload nginx
@@ -145,9 +145,9 @@ Use the provided deployment script:
    
    **For Amazon Linux 2023:**
    ```bash
-   sudo cp nginx.conf /etc/nginx/conf.d/rfp_analyzer.conf
+   sudo cp nginx.conf /etc/nginx/conf.d/rfp_extractor.conf
    # Edit the config file to use your EC2 hostname
-   sudo sed -i "s/ec2-23-20-221-108.compute-1.amazonaws.com/$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)/g" /etc/nginx/conf.d/rfp_analyzer.conf
+   sudo sed -i "s/ec2-23-20-221-108.compute-1.amazonaws.com/$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)/g" /etc/nginx/conf.d/rfp_extractor.conf
    sudo nginx -t
    sudo systemctl reload nginx
    ```
@@ -174,8 +174,8 @@ Edit the `.env` file with your configuration:
 
 ```
 # MongoDB Configuration
-MONGODB_URI=mongodb://username:password@mongodb_host:27017/rfp_analyzer
-MONGODB_DB=rfp_analyzer
+MONGODB_URI=mongodb://username:password@mongodb_host:27017/rfp_db
+MONGODB_DB=rfp_db
 
 # OpenAI API Key
 OPENAI_API_KEY=your-openai-api-key
@@ -197,12 +197,12 @@ The default Nginx configuration is set up to work with your EC2's public DNS. If
 
 **For Ubuntu:**
 ```bash
-sudo nano /etc/nginx/sites-available/rfp_analyzer
+ sudo nano /etc/nginx/sites-available/rfp_extractor
 ```
 
 **For Amazon Linux 2023:**
 ```bash
-sudo nano /etc/nginx/conf.d/rfp_analyzer.conf
+ sudo nano /etc/nginx/conf.d/rfp_extractor.conf
 ```
 
 Replace the `server_name` with your domain name or EC2 public DNS.
@@ -226,7 +226,7 @@ Replace the `server_name` with your domain name or EC2 public DNS.
 1. SSH into your EC2 instance
 2. Navigate to the application directory:
    ```bash
-   cd rfp-analyzer
+   cd RFPExtractor
    ```
 3. Pull the latest code:
    ```bash
@@ -248,13 +248,13 @@ If using MongoDB Atlas, use their backup features.
 For a self-hosted MongoDB:
 
 ```bash
-mongodump --uri="mongodb://username:password@mongodb_host:27017/rfp_analyzer" --out=/path/to/backup/directory
+mongodump --uri="mongodb://username:password@mongodb_host:27017/rfp_db" --out=/path/to/backup/directory
 ```
 
 #### MongoDB Restore
 
 ```bash
-mongorestore --uri="mongodb://username:password@mongodb_host:27017/rfp_analyzer" /path/to/backup/directory
+mongorestore --uri="mongodb://username:password@mongodb_host:27017/rfp_db" /path/to/backup/directory
 ```
 
 ## Troubleshooting
@@ -306,7 +306,7 @@ sudo mkdir -p /etc/nginx/ssl
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt
 
 # Edit nginx config to uncomment the SSL section and use these certificates
-sudo nano /etc/nginx/conf.d/rfp_analyzer.conf
+ sudo nano /etc/nginx/conf.d/rfp_extractor.conf
 
 # Test and reload
 sudo nginx -t
