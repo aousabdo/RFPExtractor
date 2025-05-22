@@ -719,7 +719,7 @@ def display_statistics_cards(rfp_data):
     # Add extra space after metrics
     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
-def display_rfp_data(rfp_data: Dict[str, Any]):
+def display_rfp_data(rfp_data: Dict[str, Any], document_storage):
     """Display the RFP data in a structured, enterprise-style way"""
     if not rfp_data:
         st.warning("No RFP data to display.")
@@ -1615,7 +1615,7 @@ You can now ask me questions about this RFP, or explore the analysis using the t
             """, unsafe_allow_html=True)
         
         # Display RFP data
-        display_rfp_data(st.session_state.current_rfp)
+        display_rfp_data(st.session_state.current_rfp, document_storage)
         
         st.subheader("💬 RFP Chat Assistant")
         st.write("Ask questions about the RFP and get AI-powered insights to help with your response strategy.")

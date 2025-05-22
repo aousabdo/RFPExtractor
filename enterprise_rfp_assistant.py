@@ -104,7 +104,7 @@ def main_content():
     if is_admin and st.session_state.get("page") == "admin":
         admin_panel.render_admin_panel(auth_instance, document_storage, colors)
     elif st.session_state.current_rfp:
-        display_rfp_data(st.session_state.current_rfp)
+        display_rfp_data(st.session_state.current_rfp, document_storage)
         st.subheader("💬 RFP Chat Assistant")
         display_chat_interface()
     else:

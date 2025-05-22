@@ -530,7 +530,7 @@ def display_statistics_cards(rfp_data):
     # Add extra space after metrics
     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
-def display_rfp_data(rfp_data: Dict[str, Any]):
+def display_rfp_data(rfp_data: Dict[str, Any], document_storage):
     """Display the RFP data in a structured, enterprise-style way"""
     if not rfp_data:
         st.warning("No RFP data to display.")
