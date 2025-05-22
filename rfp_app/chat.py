@@ -57,26 +57,75 @@ def generate_response(prompt: str) -> str:
     """Generate a chat completion using the current RFP context."""
     try:
         client = get_openai_client()
+
+        # Build RFP context with key information so the model can answer
         rfp_context = ''
         if st.session_state.get('current_rfp'):
-            rfp_context = 'RFP Information:\n'
             rfp = st.session_state.current_rfp
+            rfp_context = 'RFP Information:\n'
             if 'customer' in rfp:
                 rfp_context += f"Customer: {rfp['customer']}\n\n"
             if 'scope' in rfp:
                 rfp_context += f"Scope: {rfp['scope']}\n\n"
+
+            # Summarise tasks for better context
+            if rfp.get('tasks'):
+                rfp_context += 'Major Tasks:\n'
+                for task in rfp['tasks'][:5]:
+                    title = task.get('title', 'Task')
+                    desc = task.get('description', 'No description')
+                    page = task.get('page', 'N/A')
+                    rfp_context += f"- {title}: {desc} (Page {page})\n"
+                if len(rfp['tasks']) > 5:
+                    rfp_context += f"... and {len(rfp['tasks']) - 5} more tasks\n"
+                rfp_context += '\n'
+
+            # Summarise requirements by category
+            if rfp.get('requirements'):
+                rfp_context += 'Key Requirements:\n'
+                reqs_by_category = {}
+                for req in rfp['requirements']:
+                    cat = req.get('category', 'General')
+                    reqs_by_category.setdefault(cat, []).append(req)
+                for category, reqs in reqs_by_category.items():
+                    rfp_context += f"{category}:\n"
+                    for req in reqs[:3]:
+                        desc = req.get('description', 'No description')
+                        page = req.get('page', 'N/A')
+                        rfp_context += f"- {desc} (Page {page})\n"
+                    if len(reqs) > 3:
+                        rfp_context += f"... and {len(reqs) - 3} more requirements in this category\n"
+                rfp_context += '\n'
+
+            # Summarise key dates
+            if rfp.get('dates'):
+                rfp_context += 'Key Dates:\n'
+                for date in rfp['dates'][:5]:
+                    event = date.get('event', 'Event')
+                    date_str = date.get('date', 'No date')
+                    page = date.get('page', 'N/A')
+                    rfp_context += f"- {event}: {date_str} (Page {page})\n"
+                if len(rfp['dates']) > 5:
+                    rfp_context += f"... and {len(rfp['dates']) - 5} more dates\n"
+
+        # Base system message
         messages = [{"role": "system", "content": st.session_state.get('system_message', '')}]
         if rfp_context:
             messages.append({"role": "system", "content": f"Current RFP: {st.session_state.get('rfp_name', '')}\n\n{rfp_context}"})
+
+        # Add previous conversation
         for msg in st.session_state.get('messages', [])[-10:]:
             messages.append({"role": msg['role'], "content": msg['content']})
+
         messages.append({"role": "user", "content": prompt})
+
         response = client.chat.completions.create(
             model='gpt-4o',
             messages=messages,
             temperature=0.7,
             max_tokens=1000,
         )
+
         return response.choices[0].message.content
     except Exception as e:
         return f"I apologize, but I encountered an error: {str(e)}"
