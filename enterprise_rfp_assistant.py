@@ -7,7 +7,6 @@ import uuid
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
 import upload_pdf
-from rfp_filter import run_filter, SECTIONS
 import process_rfp
 import logging
 from datetime import datetime, timedelta
