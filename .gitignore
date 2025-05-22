@@ -71,4 +71,5 @@ temp/
 # Local test files
 test_pdfs/
 *.pdf
-output/ temp_clone/
+output/ 
+temp_clone/
