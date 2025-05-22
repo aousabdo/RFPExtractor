@@ -30,7 +30,7 @@ for key, default in {
     "current_rfp": None,
     "rfp_name": None,
     "upload_id": str(uuid.uuid4())[:8],
-    "system_message": "You are an expert RFP analyst assistant for enterprise clients.",
+    "system_message": """You are an expert RFP analyst assistant for enterprise clients. You help users understand and analyze Request for Proposals (RFPs). When answering questions, reference the uploaded RFP directly and cite page numbers whenever possible. If information is missing, say so clearly.""",
     "current_document_id": None,
 }.items():
     st.session_state.setdefault(key, default)
@@ -100,6 +100,10 @@ def main_content():
                     st.session_state.current_rfp = result
                     st.session_state.rfp_name = uploaded_file.name
                     st.session_state.messages = []
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": f"""✅ **RFP Analysis Complete: {uploaded_file.name}**\n\nI've analyzed this RFP and extracted:\n- {len(result.get('requirements', []))} requirements\n- {len(result.get('tasks', []))} tasks\n- {len(result.get('dates', []))} key dates\n\nYou can now ask me questions about this RFP, or explore the analysis using the tabs above."""
+                    })
                     st.session_state.upload_id = str(uuid.uuid4())[:8]
     if is_admin and st.session_state.get("page") == "admin":
         admin_panel.render_admin_panel(auth_instance, document_storage, colors)
