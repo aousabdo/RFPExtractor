@@ -22,6 +22,7 @@ class UserAuth:
         self.db = db
         self.users = db.users
         self.sessions = db.sessions
+        self.registration_attempts = db.registration_attempts
         
         # Create indexes if they don't exist
         self._setup_indexes()
@@ -35,6 +36,12 @@ class UserAuth:
             # For session lookup
             self.sessions.create_index("token", unique=True)
             self.sessions.create_index("expiry", expireAfterSeconds=0)
+
+            # Registration attempt tracking
+            self.registration_attempts.create_index("email")
+            self.registration_attempts.create_index(
+                "timestamp", expireAfterSeconds=86400
+            )
             
             logger.info("Database indexes created/verified")
         except Exception as e:
@@ -81,12 +88,21 @@ class UserAuth:
         """
         try:
             # Verify email domain is allowed
-            allowed_domains = ["asetpartners.com"]
-            email_domain = email.split('@')[-1].lower()
-            
-            if email_domain not in allowed_domains:
-                logger.warning(f"Registration attempt with unauthorized domain: {email_domain}")
-                raise ValueError(f"Registration is only allowed for Aset Partners emails (@asetpartners.com). Got: {email_domain}")
+            allowed_domains = [d.strip().lower() for d in os.getenv("ALLOWED_EMAIL_DOMAINS", "asetpartners.com").split(",")]
+            if not any(email.lower().endswith(f"@{domain}") for domain in allowed_domains):
+                logger.warning(f"Registration attempt with unauthorized domain: {email.split('@')[-1]}")
+                raise ValueError("Registration is restricted to corporate email addresses.")
+
+            # Rate limiting - max 5 attempts in 5 minutes per email
+            window_start = datetime.utcnow() - timedelta(minutes=5)
+            attempts = self.registration_attempts.count_documents({
+                "email": email.lower(),
+                "timestamp": {"$gte": window_start}
+            })
+            if attempts >= 5:
+                logger.warning(f"Rate limit exceeded for registration: {email}")
+                raise ValueError("Too many registration attempts. Please try again later.")
+            self.registration_attempts.insert_one({"email": email.lower(), "timestamp": datetime.utcnow()})
             
             # Check if email already exists
             if self.users.find_one({"email": email.lower()}):

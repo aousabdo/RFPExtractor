@@ -191,29 +191,34 @@ def process_uploaded_pdf(uploaded_file, aws_region: str, s3_bucket: str, s3_key:
         os.makedirs('/tmp', exist_ok=True)
         with open(temp_path, 'wb') as f:
             f.write(uploaded_file.getbuffer())
-        try:
-            result = upload_pdf.upload_and_process_pdf(
-                pdf_path=temp_path,
-                s3_bucket=s3_bucket,
-                s3_key=s3_key or uploaded_file.name,
-                aws_region=aws_region,
-                lambda_url=lambda_url,
-                sections=selected_sections,
-            )
-        except Exception as e:
-            error_message = str(e)
-            if '502 Server Error: Bad Gateway' in error_message:
-                st.markdown(
-                    "<div class=\"alert alert-warning\"><strong>⚠️ Lambda Gateway Error - Using Local Fallback</strong><br>Cannot connect to the AWS Lambda function. Switching to local processing.</div>",
-                    unsafe_allow_html=True,
+
+        if not lambda_url:
+            logger.warning("Lambda URL not configured, using local processing")
+            result = process_pdf_locally(temp_path, selected_sections)
+        else:
+            try:
+                result = upload_pdf.upload_and_process_pdf(
+                    pdf_path=temp_path,
+                    s3_bucket=s3_bucket,
+                    s3_key=s3_key or uploaded_file.name,
+                    aws_region=aws_region,
+                    lambda_url=lambda_url,
+                    sections=selected_sections,
                 )
-                result = process_pdf_locally(temp_path, selected_sections)
-            else:
-                st.markdown(
-                    f"<div class=\"alert alert-danger\"><strong>Error processing PDF:</strong> {error_message}</div>",
-                    unsafe_allow_html=True,
-                )
-                return None
+            except Exception as e:
+                error_message = str(e)
+                if '502 Server Error: Bad Gateway' in error_message:
+                    st.markdown(
+                        "<div class=\"alert alert-warning\"><strong>⚠️ Lambda Gateway Error - Using Local Fallback</strong><br>Cannot connect to the AWS Lambda function. Switching to local processing.</div>",
+                        unsafe_allow_html=True,
+                    )
+                    result = process_pdf_locally(temp_path, selected_sections)
+                else:
+                    st.markdown(
+                        f"<div class=\"alert alert-danger\"><strong>Error processing PDF:</strong> {error_message}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    return None
         if os.path.exists(temp_path):
             os.remove(temp_path)
         if result and isinstance(result, dict) and 'result' in result:

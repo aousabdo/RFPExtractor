@@ -4,7 +4,7 @@ import uuid
 import streamlit as st
 from dotenv import load_dotenv
 
-from rfp_app.auth import load_svg_logo
+from rfp_app.logo_utils import load_svg_logo
 from rfp_app.storage import init_mongodb_auth
 from rfp_app.ui import get_colors, load_css, render_app_header, show_no_rfp_screen, display_rfp_data
 from rfp_app.chat import openai_api_key, debug_api_key, test_api_key, display_chat_interface
@@ -22,7 +22,10 @@ mongo_client, mongo_db, auth_instance, document_storage = init_mongodb_auth()
 
 # Load logo into session state
 if "logo_svg" not in st.session_state:
-    st.session_state.logo_svg = load_svg_logo()
+    try:
+        st.session_state.logo_svg = load_svg_logo()
+    except Exception:
+        st.session_state.logo_svg = ""
 
 # Basic session state defaults
 for key, default in {
@@ -93,9 +96,15 @@ def main_content():
         aws_region = "us-east-1"
         s3_bucket = "my-rfp-bucket"
         s3_key = ""
-        lambda_url = "https://jc2qj7smmranhdtbxkazthh3hq0ymkih.lambda-url.us-east-1.on.aws/"
+        lambda_url = os.getenv("AWS_LAMBDA_URL", "")
         selected_sections = ["all"]
-        uploaded_file = st.file_uploader("", type=["pdf"], accept_multiple_files=False, key=f"uploader_{st.session_state.upload_id}")
+        uploaded_file = st.file_uploader(
+            "Upload RFP PDF",
+            type=["pdf"],
+            accept_multiple_files=False,
+            key=f"uploader_{st.session_state.upload_id}",
+            label_visibility="collapsed",
+        )
         if uploaded_file and st.button("Process RFP", key="process_button"):
             with st.spinner("Analyzing document..."):
                 result = process_uploaded_pdf(uploaded_file, aws_region, s3_bucket, s3_key, lambda_url, selected_sections)

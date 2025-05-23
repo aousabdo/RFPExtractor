@@ -105,6 +105,9 @@ def invoke_lambda(
     Returns:
         Dict[str, Any]: Processed results from Lambda
     """
+    if not lambda_url:
+        raise ValueError("Lambda URL not provided")
+
     try:
         logger.info(f"Invoking Lambda via URL: {lambda_url}")
         
@@ -189,17 +192,21 @@ def main():
     parser.add_argument("--bucket", required=True, help="S3 bucket name")
     parser.add_argument("--key", help="S3 object key (defaults to filename)")
     parser.add_argument("--region", default="us-east-1", help="AWS region (default: us-east-1)")
-    parser.add_argument("--lambda-url", 
-                       default="https://jc2qj7smmranhdtbxkazthh3hq0ymkih.lambda-url.us-east-1.on.aws/",
+    parser.add_argument("--lambda-url",
+                       default=os.getenv("AWS_LAMBDA_URL", ""),
                        help="Lambda function URL")
     parser.add_argument("--sections", nargs='+', default=["all"], 
                        help="Sections to process (default: ['all'])")
     
     args = parser.parse_args()
-    
+
     # Validate PDF file exists
     if not os.path.isfile(args.pdf_path):
         print(f"Error: The file '{args.pdf_path}' does not exist.")
+        return
+
+    if not args.lambda_url:
+        print("Error: Lambda URL is required. Set AWS_LAMBDA_URL or pass --lambda-url.")
         return
     
     # Run the upload and processing
