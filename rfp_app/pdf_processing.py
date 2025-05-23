@@ -202,7 +202,7 @@ def process_uploaded_pdf(uploaded_file, aws_region: str, s3_bucket: str, s3_key:
             )
         except Exception as e:
             error_message = str(e)
-            if '502 Server Error: Bad Gateway' in error_message:
+            if '502 Server Error: Bad Gateway' in error_message or 'Lambda URL is not provided' in error_message:
                 st.markdown(
                     "<div class=\"alert alert-warning\"><strong>⚠️ Lambda Gateway Error - Using Local Fallback</strong><br>Cannot connect to the AWS Lambda function. Switching to local processing.</div>",
                     unsafe_allow_html=True,

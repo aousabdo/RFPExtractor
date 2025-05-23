@@ -279,7 +279,7 @@ The application is configured via environment variables:
 | `ADMIN_PASSWORD` | Admin password | Yes |
 | `S3_BUCKET` | AWS S3 bucket name | Yes for S3 storage |
 | `AWS_REGION` | AWS region | Yes for AWS services |
-| `AWS_LAMBDA_URL` | URL for AWS Lambda function | Optional |
+| `AWS_LAMBDA_URL` | URL for AWS Lambda function (required for Lambda processing) | Optional |
 | `ALLOWED_EMAIL_DOMAINS` | Comma-separated list of allowed email domains for registration | Optional |
 
 ### MongoDB Configuration

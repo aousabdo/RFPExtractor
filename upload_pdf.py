@@ -165,6 +165,11 @@ def upload_and_process_pdf(
         Exception: If upload or processing fails
     """
     logger.info(f"Starting upload and process for {pdf_path}")
+
+    if not lambda_url:
+        raise ValueError(
+            "Lambda URL is not provided. Set the AWS_LAMBDA_URL environment variable or pass --lambda-url"
+        )
     
     # Upload to S3
     if not upload_to_s3(pdf_path, s3_bucket, s3_key, aws_region):
@@ -191,7 +196,7 @@ def main():
     parser.add_argument("--region", default="us-east-1", help="AWS region (default: us-east-1)")
     parser.add_argument("--lambda-url",
                        default=os.getenv("AWS_LAMBDA_URL", ""),
-                       help="Lambda function URL")
+                       help="Lambda function URL. Required for AWS processing")
     parser.add_argument("--sections", nargs='+', default=["all"], 
                        help="Sections to process (default: ['all'])")
     
