@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple
 from bson.objectid import ObjectId
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
