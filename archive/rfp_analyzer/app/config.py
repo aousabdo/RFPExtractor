@@ -19,7 +19,7 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET = os.getenv("S3_BUCKET", "my-rfp-bucket")
-LAMBDA_URL = os.getenv("LAMBDA_URL", "https://jc2qj7smmranhdtbxkazthh3hq0ymkih.lambda-url.us-east-1.on.aws/")
+LAMBDA_URL = os.getenv("LAMBDA_URL", "")
 
 # Application settings
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-4o")

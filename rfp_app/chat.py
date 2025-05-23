@@ -20,11 +20,13 @@ openai_api_key = get_env_api_key()
 
 
 def debug_api_key(key: str, source: str) -> None:
-    if key:
-        masked = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "***"
-        print(f"DEBUG - API KEY from {source}: {masked}, Length: {len(key)}")
-    else:
-        print(f"DEBUG - API KEY from {source}: Not set or empty")
+    """Log masked API keys when DEBUG_API_KEY environment variable is true."""
+    if os.getenv("DEBUG_API_KEY", "").lower() == "true":
+        if key:
+            masked = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "***"
+            print(f"DEBUG - API KEY from {source}: {masked}, Length: {len(key)}")
+        else:
+            print(f"DEBUG - API KEY from {source}: Not set or empty")
 
 
 def get_openai_client() -> OpenAI:

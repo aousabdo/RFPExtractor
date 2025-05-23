@@ -189,8 +189,8 @@ def main():
     parser.add_argument("--bucket", required=True, help="S3 bucket name")
     parser.add_argument("--key", help="S3 object key (defaults to filename)")
     parser.add_argument("--region", default="us-east-1", help="AWS region (default: us-east-1)")
-    parser.add_argument("--lambda-url", 
-                       default="https://jc2qj7smmranhdtbxkazthh3hq0ymkih.lambda-url.us-east-1.on.aws/",
+    parser.add_argument("--lambda-url",
+                       default=os.getenv("AWS_LAMBDA_URL", ""),
                        help="Lambda function URL")
     parser.add_argument("--sections", nargs='+', default=["all"], 
                        help="Sections to process (default: ['all'])")
