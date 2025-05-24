@@ -16,8 +16,14 @@ import upload_pdf
 import process_rfp
 from .chat import debug_api_key
 
+import hashlib
+from rfp_app.storage import get_cached_analysis, store_analysis_result
+
 logger = logging.getLogger(__name__)
 
+def calculate_document_hash(content: bytes) -> str:
+    """Compute SHA-256 fingerprint of the PDF bytes."""
+    return hashlib.sha256(content).hexdigest()
 
 def generate_pdf_report(rfp_data: Dict[str, Any], rfp_name: str, model_used: str = "gpt-4o") -> str:
     with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
@@ -185,12 +191,73 @@ def process_pdf_locally(pdf_path: str, selected_sections: List[str]):
         raise Exception(f'Failed to process PDF locally: {str(e)}')
 
 
-def process_uploaded_pdf(uploaded_file, aws_region: str, s3_bucket: str, s3_key: str, lambda_url: str, selected_sections: List[str]):
+# def process_uploaded_pdf(uploaded_file, aws_region: str, s3_bucket: str, s3_key: str, lambda_url: str, selected_sections: List[str]):
+#     try:
+#         temp_path = f"/tmp/{uploaded_file.name}"
+#         os.makedirs('/tmp', exist_ok=True)
+#         with open(temp_path, 'wb') as f:
+#             f.write(uploaded_file.getbuffer())
+#         try:
+#             result = upload_pdf.upload_and_process_pdf(
+#                 pdf_path=temp_path,
+#                 s3_bucket=s3_bucket,
+#                 s3_key=s3_key or uploaded_file.name,
+#                 aws_region=aws_region,
+#                 lambda_url=lambda_url,
+#                 sections=selected_sections,
+#             )
+#         except Exception as e:
+#             error_message = str(e)
+#             if '502 Server Error: Bad Gateway' in error_message or 'Lambda URL is not provided' in error_message:
+#                 st.markdown(
+#                     "<div class=\"alert alert-warning\"><strong>⚠️ Lambda Gateway Error - Using Local Fallback</strong><br>Cannot connect to the AWS Lambda function. Switching to local processing.</div>",
+#                     unsafe_allow_html=True,
+#                 )
+#                 result = process_pdf_locally(temp_path, selected_sections)
+#             else:
+#                 st.markdown(
+#                     f"<div class=\"alert alert-danger\"><strong>Error processing PDF:</strong> {error_message}</div>",
+#                     unsafe_allow_html=True,
+#                 )
+#                 return None
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+#         if result and isinstance(result, dict) and 'result' in result:
+#             return result['result']
+#         return result
+#     except Exception as e:
+#         st.markdown(
+#             f"<div class=\"alert alert-danger\"><strong>Error processing PDF:</strong> {str(e)}</div>",
+#             unsafe_allow_html=True,
+#         )
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+#         return None
+
+def process_uploaded_pdf(
+    uploaded_file,
+    aws_region: str,
+    s3_bucket: str,
+    s3_key: str,
+    lambda_url: str,
+    selected_sections: List[str]
+) -> Any:
     try:
         temp_path = f"/tmp/{uploaded_file.name}"
         os.makedirs('/tmp', exist_ok=True)
         with open(temp_path, 'wb') as f:
             f.write(uploaded_file.getbuffer())
+
+        # ── CACHE: read & hash the PDF before doing any work ──
+        with open(temp_path, 'rb') as f:
+            file_bytes = f.read()
+        doc_hash = calculate_document_hash(file_bytes)
+        cached = get_cached_analysis(doc_hash)
+        if cached is not None:
+            logger.info(f"Cache hit for {uploaded_file.name}")
+            return cached
+
+        # ── ORIGINAL UPLOAD / LAMBDA CALL ──
         try:
             result = upload_pdf.upload_and_process_pdf(
                 pdf_path=temp_path,
@@ -214,16 +281,30 @@ def process_uploaded_pdf(uploaded_file, aws_region: str, s3_bucket: str, s3_key:
                     unsafe_allow_html=True,
                 )
                 return None
+
+        # ── CLEANUP ──
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+        # ── NORMALIZE / EXTRACT final_result ──
         if result and isinstance(result, dict) and 'result' in result:
-            return result['result']
-        return result
+            final_result = result['result']
+        else:
+            final_result = result
+
+        # ── CACHE STORE ──
+        if final_result is not None:
+            store_analysis_result(doc_hash, final_result)
+
+        return final_result
+
     except Exception as e:
         st.markdown(
             f"<div class=\"alert alert-danger\"><strong>Error processing PDF:</strong> {str(e)}</div>",
             unsafe_allow_html=True,
         )
-        if os.path.exists(temp_path):
+        try:
             os.remove(temp_path)
+        except Exception:
+            pass
         return None
