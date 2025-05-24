@@ -33,6 +33,7 @@ The main application:
 - **Admin Panel**: Comprehensive admin interface for user management and system monitoring
 - **Document Library**: Advanced document management with filtering, search, and activity tracking
 - **Multi-session Support**: Resume analysis from previous sessions
+- **Connection Pooling**: Reuse MongoDB connections for improved performance
 
 ### Enhanced Authentication System
 - **User Registration**: Self-service registration with admin approval workflow
