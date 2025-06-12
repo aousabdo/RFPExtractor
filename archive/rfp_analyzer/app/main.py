@@ -186,7 +186,7 @@ def test_api_key(api_key):
         client = OpenAI(api_key=api_key)
         # Make a minimal API call
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[{"role": "user", "content": "Hello"}],
             max_tokens=5
         )
