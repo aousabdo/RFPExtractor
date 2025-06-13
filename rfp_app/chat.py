@@ -125,7 +125,7 @@ def generate_response(prompt: str) -> str:
             model='gpt-4o',
             messages=messages,
             temperature=0.7,
-            max_tokens=1000,
+            max_tokens=4000,
         )
 
         return response.choices[0].message.content
