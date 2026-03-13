@@ -1,0 +1,253 @@
+"""Step 7: Score proposal sections and rewrite weak ones."""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import List, Tuple
+
+from openai import OpenAI
+
+from ..models import (
+    ComplianceMatrix,
+    ProposalSection,
+    RFPAnalysis,
+    SectionScore,
+)
+from ..openai_helpers import chat_completion
+
+logger = logging.getLogger(__name__)
+
+SCORING_SYSTEM_PROMPT = """\
+You are a proposal evaluation expert who scores government/enterprise proposals \
+against RFP requirements and industry best practices.
+
+Score the provided proposal section on a 0-100 scale across these criteria:
+- **Compliance** (25%): Does it address all mapped RFP requirements?
+- **Completeness** (25%): Is the content thorough with specific details?
+- **Clarity** (25%): Is it well-written, well-organized, and easy to follow?
+- **Competitiveness** (25%): Does it present a compelling, differentiated solution?
+
+Provide your evaluation as a JSON object with this exact structure:
+{
+    "section_number": "the section number",
+    "section_title": "the section title",
+    "score": 85,
+    "strengths": ["strength 1", "strength 2"],
+    "weaknesses": ["weakness 1", "weakness 2"],
+    "recommendations": ["specific improvement 1", "specific improvement 2"],
+    "requires_rewrite": false
+}
+
+Set requires_rewrite to true if score < 70.
+Be specific in strengths, weaknesses, and recommendations — no generic feedback.\
+"""
+
+REWRITE_SYSTEM_PROMPT = """\
+You are an expert proposal writer. Rewrite this proposal section to address the specific \
+weaknesses and recommendations identified by the scoring evaluation.
+
+You must:
+- Address EVERY recommendation listed
+- Fix EVERY weakness identified
+- Maintain all existing strengths
+- Keep or exceed the current word count
+- Produce submission-ready content with no placeholders
+
+Output ONLY the rewritten section content in markdown format.\
+"""
+
+
+def score_and_rewrite(
+    client: OpenAI,
+    sections: List[ProposalSection],
+    rfp: RFPAnalysis,
+    compliance: ComplianceMatrix,
+    model: str = "gpt-5",
+) -> Tuple[List[ProposalSection], List[SectionScore], float]:
+    """Score all sections and rewrite any that fall below threshold.
+
+    Args:
+        client: OpenAI client.
+        sections: List of polished proposal sections.
+        rfp: RFP analysis for context.
+        compliance: Compliance matrix for requirement checking.
+        model: Model ID.
+
+    Returns:
+        Tuple of (updated sections, scores, overall average score).
+    """
+    logger.info("Step 7: Scoring %d proposal sections", len(sections))
+
+    scores = _score_all_sections(client, sections, rfp, compliance, model)
+
+    # Rewrite sections that scored below 70
+    updated_sections = list(sections)
+    for i, score in enumerate(scores):
+        if score.requires_rewrite and score.score < 70:
+            logger.warning(
+                "Section %s scored %d — triggering rewrite",
+                score.section_number,
+                score.score,
+            )
+            updated_sections[i] = _rewrite_with_feedback(
+                client=client,
+                section=sections[i],
+                score=score,
+                rfp=rfp,
+                model=model,
+            )
+            # Re-score the rewritten section
+            new_score = _score_single_section(
+                client, updated_sections[i], rfp, compliance, model
+            )
+            logger.info(
+                "Section %s re-scored: %d → %d",
+                score.section_number,
+                score.score,
+                new_score.score,
+            )
+            scores[i] = new_score
+
+    overall = sum(s.score for s in scores) / len(scores) if scores else 0.0
+
+    logger.info("Scoring complete. Overall score: %.1f/100", overall)
+    return updated_sections, scores, overall
+
+
+def _score_all_sections(
+    client: OpenAI,
+    sections: List[ProposalSection],
+    rfp: RFPAnalysis,
+    compliance: ComplianceMatrix,
+    model: str,
+) -> List[SectionScore]:
+    """Score all sections."""
+    scores = []
+    for section in sections:
+        score = _score_single_section(client, section, rfp, compliance, model)
+        scores.append(score)
+        logger.info(
+            "Section %s (%s): %d/100",
+            score.section_number,
+            score.section_title,
+            score.score,
+        )
+    return scores
+
+
+def _score_single_section(
+    client: OpenAI,
+    section: ProposalSection,
+    rfp: RFPAnalysis,
+    compliance: ComplianceMatrix,
+    model: str,
+) -> SectionScore:
+    """Score a single proposal section."""
+    # Get compliance rows for this section
+    relevant_reqs = [
+        f"- [{r.requirement_id}] {r.requirement_description}"
+        for r in compliance.rows
+        if r.proposal_section == section.number
+        or section.number in r.proposal_section
+    ]
+    reqs_text = "\n".join(relevant_reqs) if relevant_reqs else "None specifically mapped"
+
+    user_prompt = f"""Score this proposal section:
+
+**Section {section.number}: {section.title}**
+**Word Count:** {section.word_count}
+
+**RFP Customer:** {rfp.customer}
+**RFP Scope:** {rfp.scope}
+
+**Requirements this section should address:**
+{reqs_text}
+
+**Section Content:**
+{section.content}"""
+
+    response = chat_completion(
+        client=client,
+        system_prompt=SCORING_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        model=model,
+        max_tokens=2048,
+        temperature=0.2,
+    )
+
+    try:
+        # Extract JSON from response (handle markdown code blocks)
+        json_str = response.strip()
+        if json_str.startswith("```"):
+            json_str = json_str.split("```")[1]
+            if json_str.startswith("json"):
+                json_str = json_str[4:]
+        data = json.loads(json_str)
+        return SectionScore(
+            section_number=data.get("section_number", section.number),
+            section_title=data.get("section_title", section.title),
+            score=data.get("score", 0),
+            strengths=data.get("strengths", []),
+            weaknesses=data.get("weaknesses", []),
+            recommendations=data.get("recommendations", []),
+            requires_rewrite=data.get("requires_rewrite", False),
+        )
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.warning("Failed to parse score response: %s", e)
+        return SectionScore(
+            section_number=section.number,
+            section_title=section.title,
+            score=50,
+            strengths=["Could not parse scoring response"],
+            weaknesses=["Scoring parse error — manual review needed"],
+            recommendations=["Re-run scoring"],
+            requires_rewrite=False,
+        )
+
+
+def _rewrite_with_feedback(
+    client: OpenAI,
+    section: ProposalSection,
+    score: SectionScore,
+    rfp: RFPAnalysis,
+    model: str,
+) -> ProposalSection:
+    """Rewrite a section based on scoring feedback."""
+    weaknesses = "\n".join(f"- {w}" for w in score.weaknesses)
+    recommendations = "\n".join(f"- {r}" for r in score.recommendations)
+
+    user_prompt = f"""## Section to Rewrite
+**{section.number}. {section.title}** (Current score: {score.score}/100)
+
+## Current Content
+{section.content}
+
+## Weaknesses to Fix
+{weaknesses}
+
+## Specific Recommendations
+{recommendations}
+
+## RFP Context
+**Customer:** {rfp.customer}
+**Scope:** {rfp.scope}
+
+Rewrite this section to address all weaknesses and recommendations above."""
+
+    content = chat_completion(
+        client=client,
+        system_prompt=REWRITE_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        model=model,
+        max_tokens=8192,
+        temperature=0.3,
+    )
+
+    return ProposalSection(
+        number=section.number,
+        title=section.title,
+        content=content,
+        word_count=len(content.split()),
+        requirements_addressed=section.requirements_addressed,
+    )

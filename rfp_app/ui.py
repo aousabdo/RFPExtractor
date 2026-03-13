@@ -364,7 +364,7 @@ def display_rfp_data(rfp_data: Dict[str, Any], document_storage):
     
     # Create tabs for different RFP sections
     # tab1, tab2, tab3, tab4 = st.tabs(["📋 Overview", "📝 Requirements", "✅ Tasks", "📅 Timeline"])
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Overview", "📝 Requirements", "✅ Tasks", "📅 Timeline", "📚 Documents"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📋 Overview", "📝 Requirements", "✅ Tasks", "📅 Timeline", "📚 Documents", "📄 Proposal"])
 
     
     # Professional card style
@@ -550,6 +550,10 @@ def display_rfp_data(rfp_data: Dict[str, Any], document_storage):
 
     with tab5:
         document_management_ui.render_document_management(document_storage, colors)
+
+    with tab6:
+        from rfp_app.proposal_ui import render_proposal_tab
+        render_proposal_tab(rfp_data)
 
 def render_app_header():
     """Render the application header with logo"""
