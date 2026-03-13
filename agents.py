@@ -1,3 +1,13 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# DEPRECATED: This file uses the Agno framework which has been replaced.
+# Use proposal_pipeline/ instead — it provides the same functionality
+# with direct OpenAI SDK calls, explicit sequential orchestration,
+# per-section quality gates, and Streamlit UI integration.
+#
+# This file is kept temporarily for reference. It will be removed
+# after the new pipeline is validated in production.
+# ──────────────────────────────────────────────────────────────────────────────
+
 from agno.agent import Agent
 from agno.models.anthropic import Claude
 from agno.models.openai import OpenAIChat
