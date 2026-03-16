@@ -177,12 +177,27 @@ def _score_single_section(
     )
 
     try:
-        # Extract JSON from response (handle markdown code blocks)
+        # Extract JSON from response (handle markdown code blocks, None, etc.)
+        if not response:
+            raise json.JSONDecodeError("Empty response", "", 0)
         json_str = response.strip()
-        if json_str.startswith("```"):
-            json_str = json_str.split("```")[1]
-            if json_str.startswith("json"):
-                json_str = json_str[4:]
+        # Strip markdown code fences if present
+        if "```" in json_str:
+            # Find content between first ``` and last ```
+            parts = json_str.split("```")
+            for part in parts[1:]:
+                candidate = part.strip()
+                if candidate.startswith("json"):
+                    candidate = candidate[4:].strip()
+                if candidate and candidate[0] == "{":
+                    json_str = candidate
+                    break
+        # Try to find a JSON object if response has extra text
+        if not json_str.startswith("{"):
+            start = json_str.find("{")
+            end = json_str.rfind("}") + 1
+            if start != -1 and end > start:
+                json_str = json_str[start:end]
         data = json.loads(json_str)
         return SectionScore(
             section_number=data.get("section_number", section.number),
