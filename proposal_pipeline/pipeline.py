@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import shutil
 import time
-from typing import Callable, Optional
+from datetime import datetime
+from pathlib import Path
+from typing import Callable, List, Optional
 
 from .export import create_output_dir, save_intermediate, to_json, to_markdown, to_docx
 from .models import PipelineContext, ProposalPackage
@@ -31,7 +36,10 @@ class ProposalPipeline:
 
     Usage:
         pipeline = ProposalPipeline(api_key="sk-...", model="gpt-5")
-        package = pipeline.run(rfp_text="Full RFP document text...")
+        package = pipeline.run(
+            rfp_text="Full RFP document text...",
+            source_files=["path/to/sow.pdf", "path/to/rfq.pdf"],
+        )
     """
 
     def __init__(
@@ -56,6 +64,7 @@ class ProposalPipeline:
         self,
         rfp_text: str | None = None,
         existing_analysis: dict | None = None,
+        source_files: List[str] | None = None,
     ) -> ProposalPackage:
         """Execute the full 7-step proposal generation pipeline.
 
@@ -63,6 +72,8 @@ class ProposalPipeline:
             rfp_text: Raw RFP document text. Required if existing_analysis not provided.
             existing_analysis: Pre-extracted RFP analysis dict (from process_rfp.py).
                 If provided, Step 1 is skipped and this data is used directly.
+            source_files: Optional list of file paths (PDFs, docs, etc.) to copy
+                into the output directory for traceability.
 
         Returns:
             ProposalPackage with all generated content, scores, and metadata.
@@ -76,6 +87,7 @@ class ProposalPipeline:
             )
 
         start_time = time.time()
+        run_timestamp = datetime.now().isoformat()
 
         # ── Step 1: Analyze RFP ──
         self.progress_callback("Analyzing RFP...", 0.05)
@@ -90,8 +102,11 @@ class ProposalPipeline:
         if not self._output_dir:
             self._output_dir = create_output_dir(rfp_name=rfp.customer)
         else:
-            import os
             os.makedirs(self._output_dir, exist_ok=True)
+
+        # ── Save inputs for traceability ──
+        self._save_inputs(rfp_text, source_files)
+
         save_intermediate(rfp, "step1_rfp_analysis.json", self._output_dir)
 
         # ── Step 2: Generate Outline ──
@@ -165,6 +180,20 @@ class ProposalPipeline:
 
         # ── Assemble Package ──
         elapsed = time.time() - start_time
+        source_file_names = [
+            os.path.basename(f) for f in (source_files or [])
+        ]
+        metadata = {
+            "model": self.model,
+            "total_sections": len(sections),
+            "total_words": sum(s.word_count for s in sections),
+            "elapsed_seconds": round(elapsed, 1),
+            "output_dir": self._output_dir,
+            "timestamp": run_timestamp,
+            "source_files": source_file_names,
+            "rfp_text_length": len(rfp_text) if rfp_text else 0,
+        }
+
         package = ProposalPackage(
             rfp_analysis=rfp,
             outline=outline,
@@ -172,17 +201,10 @@ class ProposalPipeline:
             sections=sections,
             scores=scores,
             overall_score=overall_score,
-            generation_metadata={
-                "model": self.model,
-                "total_sections": len(sections),
-                "total_words": sum(s.word_count for s in sections),
-                "elapsed_seconds": round(elapsed, 1),
-                "output_dir": self._output_dir,
-            },
+            generation_metadata=metadata,
         )
 
         # ── Save final outputs ──
-        import os
         md_path = os.path.join(self._output_dir, "proposal.md")
         with open(md_path, "w") as f:
             f.write(to_markdown(package))
@@ -196,6 +218,9 @@ class ProposalPipeline:
             f.write(to_json(package))
         logger.info("Saved proposal.json to %s", json_path)
 
+        # ── Save run manifest ──
+        self._save_manifest(metadata, overall_score, sections, scores)
+
         self.progress_callback("Proposal complete!", 1.0)
         logger.info(
             "Pipeline complete: %d sections, %d total words, score %.0f/100, %.0fs → %s",
@@ -206,3 +231,81 @@ class ProposalPipeline:
             self._output_dir,
         )
         return package
+
+    def _save_inputs(
+        self,
+        rfp_text: str | None,
+        source_files: List[str] | None,
+    ) -> None:
+        """Save input documents and extracted text to the output directory."""
+        inputs_dir = os.path.join(self._output_dir, "inputs")
+        os.makedirs(inputs_dir, exist_ok=True)
+
+        # Save raw extracted text
+        if rfp_text:
+            text_path = os.path.join(inputs_dir, "rfp_extracted_text.txt")
+            with open(text_path, "w") as f:
+                f.write(rfp_text)
+            logger.info("Saved extracted RFP text (%d chars) to %s", len(rfp_text), text_path)
+
+        # Copy source files (PDFs, docs, etc.)
+        if source_files:
+            for src_path in source_files:
+                src_path = str(src_path)
+                if os.path.isfile(src_path):
+                    dest = os.path.join(inputs_dir, os.path.basename(src_path))
+                    shutil.copy2(src_path, dest)
+                    logger.info("Copied input file: %s → %s", src_path, dest)
+                else:
+                    logger.warning("Source file not found, skipping: %s", src_path)
+
+    def _save_manifest(
+        self,
+        metadata: dict,
+        overall_score: float,
+        sections: list,
+        scores: list,
+    ) -> None:
+        """Save a human-readable run manifest summarizing the pipeline run."""
+        manifest = {
+            "run_info": {
+                "timestamp": metadata.get("timestamp"),
+                "model": metadata.get("model"),
+                "elapsed_seconds": metadata.get("elapsed_seconds"),
+                "output_dir": metadata.get("output_dir"),
+            },
+            "inputs": {
+                "source_files": metadata.get("source_files", []),
+                "rfp_text_length_chars": metadata.get("rfp_text_length", 0),
+            },
+            "results": {
+                "total_sections": metadata.get("total_sections"),
+                "total_words": metadata.get("total_words"),
+                "overall_score": round(overall_score, 1),
+                "sections": [
+                    {
+                        "number": s.number,
+                        "title": s.title,
+                        "word_count": s.word_count,
+                    }
+                    for s in sections
+                ],
+                "scores_summary": [
+                    {
+                        "section": f"{sc.section_number}. {sc.section_title}",
+                        "score": sc.score,
+                        "requires_rewrite": sc.requires_rewrite,
+                    }
+                    for sc in scores
+                ],
+            },
+            "files_in_directory": sorted(
+                f for f in os.listdir(self._output_dir)
+                if not f.startswith(".")
+            ),
+        }
+
+        manifest_path = os.path.join(self._output_dir, "manifest.json")
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f, indent=2, default=str)
+        logger.info("Saved run manifest to %s", manifest_path)
