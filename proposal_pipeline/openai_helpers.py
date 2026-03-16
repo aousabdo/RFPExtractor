@@ -6,10 +6,28 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Optional, Type, TypeVar
 
+from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
+
+# Load .env from the project root (two levels up from this file:
+#   proposal_pipeline/openai_helpers.py -> proposal_pipeline/ -> project root)
+_env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=_env_path, override=True)
+
+# Debug: confirm which key is loaded
+_loaded_key = os.getenv("OPENAI_API_KEY", "")
+print(f"[openai_helpers] Using OPENAI_API_KEY: {_loaded_key[:20]}..." if _loaded_key else "[openai_helpers] WARNING: OPENAI_API_KEY not set!")
+
+# Reasoning models (o1, o3, gpt-5, etc.) only support temperature=1 (the default).
+# Passing any other value causes a 400 error, so we detect and skip it.
+_REASONING_MODEL_PREFIXES = ("o1", "o3", "gpt-5")
+
+def _is_reasoning_model(model: str) -> bool:
+    return any(model.startswith(p) for p in _REASONING_MODEL_PREFIXES)
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
@@ -31,15 +49,19 @@ def chat_completion(
     max_tokens: int = 4096,
 ) -> str:
     """Simple chat completion returning text content."""
-    response = client.chat.completions.create(
+    kwargs: dict = dict(
         model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=temperature,
-        max_tokens=max_tokens,
     )
+    if _is_reasoning_model(model):
+        kwargs["max_completion_tokens"] = max_tokens
+    else:
+        kwargs["max_tokens"] = max_tokens
+        kwargs["temperature"] = temperature
+    response = client.chat.completions.create(**kwargs)
     return response.choices[0].message.content
 
 
@@ -68,15 +90,17 @@ def structured_output(
     last_error = None
     for attempt in range(max_retries + 1):
         try:
-            response = client.chat.completions.create(
+            kwargs: dict = dict(
                 model=model,
                 messages=[
                     {"role": "system", "content": augmented_system},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=temperature,
                 response_format={"type": "json_object"},
             )
+            if not _is_reasoning_model(model):
+                kwargs["temperature"] = temperature
+            response = client.chat.completions.create(**kwargs)
             raw = response.choices[0].message.content
             return response_model.model_validate_json(raw)
         except Exception as e:
