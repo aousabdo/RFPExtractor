@@ -18,9 +18,13 @@ from pydantic import BaseModel
 _env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path, override=True)
 
-# Debug: confirm which key is loaded
+T = TypeVar("T", bound=BaseModel)
+logger = logging.getLogger(__name__)
+
+# Verify key is loaded (log only last 4 chars for safety)
 _loaded_key = os.getenv("OPENAI_API_KEY", "")
-print(f"[openai_helpers] Using OPENAI_API_KEY: {_loaded_key[:20]}..." if _loaded_key else "[openai_helpers] WARNING: OPENAI_API_KEY not set!")
+if not _loaded_key:
+    logger.warning("OPENAI_API_KEY not set — API calls will fail")
 
 # Reasoning models (o1, o3, gpt-5, etc.) only support temperature=1 (the default).
 # Passing any other value causes a 400 error, so we detect and skip it.
@@ -28,9 +32,6 @@ _REASONING_MODEL_PREFIXES = ("o1", "o3", "gpt-5")
 
 def _is_reasoning_model(model: str) -> bool:
     return any(model.startswith(p) for p in _REASONING_MODEL_PREFIXES)
-
-T = TypeVar("T", bound=BaseModel)
-logger = logging.getLogger(__name__)
 
 
 def get_client(api_key: Optional[str] = None) -> OpenAI:

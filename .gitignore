@@ -71,5 +71,8 @@ temp/
 # Local test files
 test_pdfs/
 *.pdf
-output/ 
+output/
 temp_clone/
+
+# Generated proposals (may contain sensitive RFP content)
+proposals/
