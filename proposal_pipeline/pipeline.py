@@ -13,7 +13,7 @@ from typing import Callable, List, Optional
 
 from .export import create_output_dir, save_intermediate, to_json, to_markdown, to_docx
 from .models import PipelineContext, ProposalPackage
-from .openai_helpers import get_client
+from .openai_helpers import get_client, reset_usage_tracker, get_usage_tracker
 from .steps.s1_analyze_rfp import analyze_rfp, rfp_analysis_from_existing
 from .steps.s2_generate_outline import generate_outline
 from .steps.s3_compliance_matrix import build_compliance_matrix
@@ -88,6 +88,7 @@ class ProposalPipeline:
 
         start_time = time.time()
         run_timestamp = datetime.now().isoformat()
+        usage_tracker = reset_usage_tracker()
 
         # ── Step 1: Analyze RFP ──
         self.progress_callback("Analyzing RFP...", 0.05)
@@ -180,6 +181,7 @@ class ProposalPipeline:
 
         # ── Assemble Package ──
         elapsed = time.time() - start_time
+        usage = get_usage_tracker()
         source_file_names = [
             os.path.basename(f) for f in (source_files or [])
         ]
@@ -192,6 +194,7 @@ class ProposalPipeline:
             "timestamp": run_timestamp,
             "source_files": source_file_names,
             "rfp_text_length": len(rfp_text) if rfp_text else 0,
+            "cost": usage.summary(),
         }
 
         package = ProposalPackage(
@@ -221,13 +224,18 @@ class ProposalPipeline:
         # ── Save run manifest ──
         self._save_manifest(metadata, overall_score, sections, scores)
 
-        self.progress_callback("Proposal complete!", 1.0)
+        self.progress_callback(
+            f"Proposal complete! ({usage.total_calls} API calls, ~${usage.estimated_cost_usd:.2f})",
+            1.0,
+        )
         logger.info(
-            "Pipeline complete: %d sections, %d total words, score %.0f/100, %.0fs → %s",
+            "Pipeline complete: %d sections, %d words, score %.0f/100, "
+            "%.0fs, %s → %s",
             len(sections),
             sum(s.word_count for s in sections),
             overall_score,
             elapsed,
+            str(usage),
             self._output_dir,
         )
         return package
@@ -299,6 +307,7 @@ class ProposalPipeline:
                     for sc in scores
                 ],
             },
+            "cost": metadata.get("cost", {}),
             "files_in_directory": sorted(
                 f for f in os.listdir(self._output_dir)
                 if not f.startswith(".")
