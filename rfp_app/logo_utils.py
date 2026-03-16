@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def load_svg_logo(path: str = "rfp_analyzer_logo.svg"):
+def load_svg_logo(path: str = "assets/rfp_analyzer_logo.svg"):
     """Return SVG logo contents.
 
     Raises:

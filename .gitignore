@@ -76,3 +76,15 @@ temp_clone/
 
 # Generated proposals (may contain sensitive RFP content)
 proposals/
+
+# Archive of old code (kept locally, not on GitHub)
+_archive/
+
+# Generated output files
+*.docx
+*.zip
+rfp_analysis_*.json
+proposal_*.txt
+proposal_*.md
+proposal_*.json
+proposal_*.docx
