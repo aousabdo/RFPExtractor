@@ -88,3 +88,4 @@ proposal_*.txt
 proposal_*.md
 proposal_*.json
 proposal_*.docx
+.claude/
