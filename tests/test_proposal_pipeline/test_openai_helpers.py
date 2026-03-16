@@ -63,8 +63,9 @@ class TestChatCompletion:
 
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         assert call_kwargs["model"] == "gpt-5"
-        assert call_kwargs["temperature"] == 0.5
-        assert call_kwargs["max_tokens"] == 2048
+        # gpt-5 is a reasoning model — temperature is skipped, max_completion_tokens used
+        assert "temperature" not in call_kwargs
+        assert call_kwargs["max_completion_tokens"] == 2048
 
 
 class TestStructuredOutput:

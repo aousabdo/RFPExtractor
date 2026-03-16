@@ -2,5 +2,13 @@
 
 from .pipeline import ProposalPipeline
 from .models import ProposalPackage
+from .export import create_output_dir, to_markdown, to_docx, to_json
 
-__all__ = ["ProposalPipeline", "ProposalPackage"]
+__all__ = [
+    "ProposalPipeline",
+    "ProposalPackage",
+    "create_output_dir",
+    "to_markdown",
+    "to_docx",
+    "to_json",
+]

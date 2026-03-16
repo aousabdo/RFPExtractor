@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Callable, Optional
 
+from .export import create_output_dir, save_intermediate, to_json, to_markdown, to_docx
 from .models import PipelineContext, ProposalPackage
 from .openai_helpers import get_client
 from .steps.s1_analyze_rfp import analyze_rfp, rfp_analysis_from_existing
@@ -25,6 +26,9 @@ class ProposalPipeline:
     Each step runs to completion, validates its output, and passes results
     to the next step. Progress is reported via an optional callback.
 
+    Intermediate artifacts are saved to disk after each step so nothing
+    is lost if the pipeline fails midway.
+
     Usage:
         pipeline = ProposalPipeline(api_key="sk-...", model="gpt-5")
         package = pipeline.run(rfp_text="Full RFP document text...")
@@ -36,11 +40,17 @@ class ProposalPipeline:
         model: str = "gpt-5",
         progress_callback: Optional[Callable[[str, float], None]] = None,
         context: PipelineContext | None = None,
+        output_dir: str | None = None,
     ):
         self.client = get_client(api_key)
         self.model = model
         self.progress_callback = progress_callback or (lambda msg, pct: None)
         self.context = context
+        self._output_dir = output_dir  # Set later if not provided
+
+    @property
+    def output_dir(self) -> str | None:
+        return self._output_dir
 
     def run(
         self,
@@ -76,6 +86,14 @@ class ProposalPipeline:
             rfp = analyze_rfp(self.client, rfp_text, self.model)
         self.progress_callback("RFP analysis complete", 0.10)
 
+        # Create output directory from RFP customer name
+        if not self._output_dir:
+            self._output_dir = create_output_dir(rfp_name=rfp.customer)
+        else:
+            import os
+            os.makedirs(self._output_dir, exist_ok=True)
+        save_intermediate(rfp, "step1_rfp_analysis.json", self._output_dir)
+
         # ── Step 2: Generate Outline ──
         self.progress_callback("Generating proposal outline...", 0.12)
         outline = generate_outline(
@@ -84,6 +102,7 @@ class ProposalPipeline:
         self.progress_callback(
             f"Outline complete: {len(outline.sections)} sections", 0.18
         )
+        save_intermediate(outline, "step2_outline.json", self._output_dir)
 
         # ── Step 3: Compliance Matrix ──
         self.progress_callback("Building compliance matrix...", 0.20)
@@ -94,6 +113,7 @@ class ProposalPipeline:
             f"Compliance matrix: {compliance.coverage_percentage:.0f}% coverage",
             0.28,
         )
+        save_intermediate(compliance, "step3_compliance_matrix.json", self._output_dir)
 
         # ── Step 4: Technology Research ──
         self.progress_callback("Researching technologies...", 0.29)
@@ -101,6 +121,7 @@ class ProposalPipeline:
         self.progress_callback(
             f"Tech research: {len(tech_research)} areas", 0.32
         )
+        save_intermediate(tech_research, "step4_tech_research.json", self._output_dir)
 
         # ── Step 5: Write Sections (bulk of the work) ──
         sections = write_all_sections(
@@ -114,6 +135,7 @@ class ProposalPipeline:
             progress_callback=self.progress_callback,
         )
         self.progress_callback("All sections drafted", 0.85)
+        save_intermediate(sections, "step5_sections_draft.json", self._output_dir)
 
         # ── Step 6: Review and Polish ──
         self.progress_callback("Reviewing and polishing...", 0.87)
@@ -125,6 +147,7 @@ class ProposalPipeline:
             progress_callback=self.progress_callback,
         )
         self.progress_callback("Review complete", 0.92)
+        save_intermediate(sections, "step6_sections_polished.json", self._output_dir)
 
         # ── Step 7: Score and Rewrite Loop ──
         self.progress_callback("Scoring proposal...", 0.93)
@@ -138,6 +161,7 @@ class ProposalPipeline:
         self.progress_callback(
             f"Scoring complete: {overall_score:.0f}/100", 0.98
         )
+        save_intermediate(scores, "step7_scores.json", self._output_dir)
 
         # ── Assemble Package ──
         elapsed = time.time() - start_time
@@ -153,15 +177,32 @@ class ProposalPipeline:
                 "total_sections": len(sections),
                 "total_words": sum(s.word_count for s in sections),
                 "elapsed_seconds": round(elapsed, 1),
+                "output_dir": self._output_dir,
             },
         )
 
+        # ── Save final outputs ──
+        import os
+        md_path = os.path.join(self._output_dir, "proposal.md")
+        with open(md_path, "w") as f:
+            f.write(to_markdown(package))
+        logger.info("Saved proposal.md to %s", md_path)
+
+        docx_path = os.path.join(self._output_dir, "proposal.docx")
+        to_docx(package, docx_path)
+
+        json_path = os.path.join(self._output_dir, "proposal.json")
+        with open(json_path, "w") as f:
+            f.write(to_json(package))
+        logger.info("Saved proposal.json to %s", json_path)
+
         self.progress_callback("Proposal complete!", 1.0)
         logger.info(
-            "Pipeline complete: %d sections, %d total words, score %.0f/100, %.0fs",
+            "Pipeline complete: %d sections, %d total words, score %.0f/100, %.0fs → %s",
             len(sections),
             sum(s.word_count for s in sections),
             overall_score,
             elapsed,
+            self._output_dir,
         )
         return package

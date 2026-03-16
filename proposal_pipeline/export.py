@@ -1,14 +1,90 @@
-"""Export proposal to Markdown and Word (.docx) formats."""
+"""Export proposal to Markdown, Word (.docx), and JSON formats.
+
+Also provides helpers to create timestamped output directories and
+save intermediate pipeline artifacts.
+"""
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
+from datetime import datetime
 from typing import Optional
 
 from .models import ProposalPackage
 
 logger = logging.getLogger(__name__)
+
+
+def create_output_dir(
+    rfp_name: str = "proposal",
+    base_dir: str = "proposals",
+) -> str:
+    """Create a timestamped output directory for a proposal run.
+
+    Structure: proposals/<rfp_name>_YYYY-MM-DD_HHMMSS/
+
+    Args:
+        rfp_name: Short name derived from the RFP (sanitized for filesystem).
+        base_dir: Parent directory for all proposals.
+
+    Returns:
+        Absolute path to the created directory.
+    """
+    # Sanitize rfp_name for filesystem
+    safe_name = re.sub(r"[^\w\s-]", "", rfp_name)[:60].strip().replace(" ", "_")
+    if not safe_name:
+        safe_name = "proposal"
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    dir_name = f"{safe_name}_{timestamp}"
+    full_path = os.path.join(base_dir, dir_name)
+    os.makedirs(full_path, exist_ok=True)
+    logger.info("Created output directory: %s", full_path)
+    return full_path
+
+
+def save_intermediate(data, filename: str, output_dir: str) -> str:
+    """Save an intermediate pipeline artifact as JSON.
+
+    Args:
+        data: A Pydantic model or dict to serialize.
+        filename: e.g. 'step1_rfp_analysis.json'
+        output_dir: Directory to save into.
+
+    Returns:
+        Path to the saved file.
+    """
+    path = os.path.join(output_dir, filename)
+    if hasattr(data, "model_dump_json"):
+        content = data.model_dump_json(indent=2)
+    elif hasattr(data, "model_dump"):
+        content = json.dumps(data.model_dump(), indent=2, default=str)
+    elif isinstance(data, dict):
+        content = json.dumps(data, indent=2, default=str)
+    elif isinstance(data, list):
+        # Handle list of Pydantic models or dicts
+        items = []
+        for item in data:
+            if hasattr(item, "model_dump"):
+                items.append(item.model_dump())
+            else:
+                items.append(item)
+        content = json.dumps(items, indent=2, default=str)
+    else:
+        content = json.dumps(str(data), indent=2)
+
+    with open(path, "w") as f:
+        f.write(content)
+    logger.info("Saved intermediate: %s", path)
+    return path
+
+
+def to_json(package: ProposalPackage) -> str:
+    """Export the full proposal package as a JSON string."""
+    return package.model_dump_json(indent=2)
 
 
 def to_markdown(package: ProposalPackage) -> str:

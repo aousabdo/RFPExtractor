@@ -14,7 +14,7 @@ from ..models import (
     RFPAnalysis,
     SectionScore,
 )
-from ..openai_helpers import chat_completion
+from ..openai_helpers import chat_completion, structured_output
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +27,6 @@ Score the provided proposal section on a 0-100 scale across these criteria:
 - **Completeness** (25%): Is the content thorough with specific details?
 - **Clarity** (25%): Is it well-written, well-organized, and easy to follow?
 - **Competitiveness** (25%): Does it present a compelling, differentiated solution?
-
-Provide your evaluation as a JSON object with this exact structure:
-{
-    "section_number": "the section number",
-    "section_title": "the section title",
-    "score": 85,
-    "strengths": ["strength 1", "strength 2"],
-    "weaknesses": ["weakness 1", "weakness 2"],
-    "recommendations": ["specific improvement 1", "specific improvement 2"],
-    "requires_rewrite": false
-}
 
 Set requires_rewrite to true if score < 70.
 Be specific in strengths, weaknesses, and recommendations — no generic feedback.\
@@ -143,7 +132,7 @@ def _score_single_section(
     compliance: ComplianceMatrix,
     model: str,
 ) -> SectionScore:
-    """Score a single proposal section."""
+    """Score a single proposal section using structured output for reliable parsing."""
     # Get compliance rows for this section
     relevant_reqs = [
         f"- [{r.requirement_id}] {r.requirement_description}"
@@ -167,9 +156,57 @@ def _score_single_section(
 **Section Content:**
 {section.content}"""
 
+    try:
+        return structured_output(
+            client=client,
+            system_prompt=SCORING_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            response_model=SectionScore,
+            model=model,
+            max_retries=2,
+        )
+    except Exception as e:
+        logger.warning(
+            "Structured scoring failed for section %s, falling back to chat: %s",
+            section.number,
+            e,
+        )
+        # Fallback: try chat_completion with JSON extraction
+        return _score_via_chat_fallback(client, section, rfp, reqs_text, model)
+
+
+def _score_via_chat_fallback(
+    client: OpenAI,
+    section: ProposalSection,
+    rfp: RFPAnalysis,
+    reqs_text: str,
+    model: str,
+) -> SectionScore:
+    """Fallback scorer using chat_completion with robust JSON extraction."""
+    fallback_system = (
+        SCORING_SYSTEM_PROMPT
+        + "\n\nRespond with a JSON object containing: section_number, section_title, "
+        "score (int 0-100), strengths (list of strings), weaknesses (list of strings), "
+        "recommendations (list of strings), requires_rewrite (bool, true if score < 70)."
+    )
+
+    user_prompt = f"""Score this proposal section:
+
+**Section {section.number}: {section.title}**
+**Word Count:** {section.word_count}
+
+**RFP Customer:** {rfp.customer}
+**RFP Scope:** {rfp.scope}
+
+**Requirements this section should address:**
+{reqs_text}
+
+**Section Content (first 3000 chars):**
+{section.content[:3000]}"""
+
     response = chat_completion(
         client=client,
-        system_prompt=SCORING_SYSTEM_PROMPT,
+        system_prompt=fallback_system,
         user_prompt=user_prompt,
         model=model,
         max_tokens=2048,
@@ -177,13 +214,11 @@ def _score_single_section(
     )
 
     try:
-        # Extract JSON from response (handle markdown code blocks, None, etc.)
         if not response:
             raise json.JSONDecodeError("Empty response", "", 0)
         json_str = response.strip()
-        # Strip markdown code fences if present
+        # Strip markdown code fences
         if "```" in json_str:
-            # Find content between first ``` and last ```
             parts = json_str.split("```")
             for part in parts[1:]:
                 candidate = part.strip()
@@ -192,7 +227,7 @@ def _score_single_section(
                 if candidate and candidate[0] == "{":
                     json_str = candidate
                     break
-        # Try to find a JSON object if response has extra text
+        # Find JSON object in response
         if not json_str.startswith("{"):
             start = json_str.find("{")
             end = json_str.rfind("}") + 1
@@ -208,8 +243,8 @@ def _score_single_section(
             recommendations=data.get("recommendations", []),
             requires_rewrite=data.get("requires_rewrite", False),
         )
-    except (json.JSONDecodeError, KeyError) as e:
-        logger.warning("Failed to parse score response: %s", e)
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        logger.warning("Fallback scoring also failed for section %s: %s", section.number, e)
         return SectionScore(
             section_number=section.number,
             section_title=section.title,
