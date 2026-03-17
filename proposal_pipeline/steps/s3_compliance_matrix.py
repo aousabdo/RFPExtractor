@@ -23,8 +23,13 @@ For each requirement:
 3. **category**: The requirement category (Security, Compliance, IT Standards, Personnel).
 4. **source_page**: The page number from the RFP (use 0 if unknown).
 5. **proposal_section**: The section number from the outline that will address this requirement.
-6. **compliance_status**: "Full" if the section guidance already covers this requirement. \
-   "Partial" if partially addressed. "Gap" if no section adequately covers it.
+6. **compliance_status**: Use "Full" if ONE OR MORE sections collectively address the requirement \
+   (even if split across multiple sections — list ALL relevant sections in proposal_section separated by "; "). \
+   Use "Partial" ONLY if a requirement is genuinely missing important elements. \
+   Use "Gap" ONLY if no section covers the requirement at all. \
+   IMPORTANT: A requirement addressed across 2-3 sections is STILL "Full" compliance, not "Partial". \
+   Err on the side of "Full" — government evaluators penalize gaps, so only mark "Partial" or "Gap" \
+   when something is truly missing from the proposal outline.
 7. **notes**: Any notes about how to address the requirement or why there's a gap.
 
 Also compute:

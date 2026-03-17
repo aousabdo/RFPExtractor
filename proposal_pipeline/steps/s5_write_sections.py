@@ -27,6 +27,43 @@ from ..quality_gates import run_quality_gate
 
 logger = logging.getLogger(__name__)
 
+
+def _strip_leading_heading(content: str, section_number: str, section_title: str) -> str:
+    """Strip duplicate section heading if the model included one at the top.
+
+    The export layer adds headings, so we remove them from the model output
+    to prevent duplication like:
+        ## 2. Understanding of Requirements
+        ## 2. Understanding of Requirements
+    """
+    lines = content.split("\n")
+    # Check first few non-empty lines for a heading that matches
+    for i, line in enumerate(lines[:5]):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Match patterns like "## 2. Title", "Section 2: Title", "2. Title", "# Title"
+        if stripped.startswith("#"):
+            heading_text = stripped.lstrip("#").strip()
+            # Check if it contains the section number or title
+            if (section_number in heading_text
+                    or section_title.lower() in heading_text.lower()
+                    or heading_text.lower().startswith(section_title[:20].lower())):
+                lines.pop(i)
+                # Also remove a trailing blank line if present
+                while i < len(lines) and not lines[i].strip():
+                    lines.pop(i)
+                return "\n".join(lines)
+        elif (stripped.lower().startswith(f"section {section_number}")
+              or stripped.lower().startswith(section_title[:20].lower())):
+            lines.pop(i)
+            while i < len(lines) and not lines[i].strip():
+                lines.pop(i)
+            return "\n".join(lines)
+        else:
+            break  # First non-empty, non-heading line — stop looking
+    return content
+
 SECTION_SYSTEM_PROMPT = """\
 You are an expert proposal writer for a government/enterprise IT services company. \
 You write compelling, detailed, submission-ready proposal sections.
@@ -48,8 +85,9 @@ Write a COMPLETE, DETAILED proposal section based on the provided brief. Your ou
    reference it briefly ("as detailed in Section X") rather than re-explaining it. \
    Add NEW information, not repetition.
 
-Output ONLY the section content in markdown format. Do not include the section number or title \
-as a heading — those are added by the system.\
+Output ONLY the section content in markdown format. Do NOT include the section number or title \
+as a heading (e.g., do NOT start with "## 3.2 Data Management") — headings are added by the system. \
+Start directly with the content.\
 """
 
 EXEC_SUMMARY_SYSTEM_PROMPT = """\
@@ -123,12 +161,14 @@ Rewrite the section to address the specific feedback below.
 
 You must:
 - Fix ALL issues identified in the feedback
-- Maintain or increase the level of detail
+- If the feedback says word count is too HIGH: aggressively cut filler, merge overlapping bullets, \
+  replace verbose explanations with concise statements, and remove content that belongs in other sections. \
+  The MAXIMUM word count is a HARD ceiling — exceeding it is a failure.
+- If the feedback says word count is too LOW: expand with more specific detail
 - Keep all content that was already good
-- Meet the target word count but stay under the maximum
 - Use no placeholder text whatsoever
 
-Output ONLY the revised section content in markdown format.\
+Output ONLY the revised section content in markdown format. Do NOT include a section heading.\
 """
 
 
@@ -262,34 +302,40 @@ def write_all_sections(
                 context=context,
             )
 
-        # Quality gate with retry (max 2 retries)
-        for retry in range(3):
+        # Quality gate with retry (max 1 rewrite to save cost)
+        gate = run_quality_gate(section, section_outline)
+        if gate.passed:
+            logger.info(
+                "Section %s passed quality gate (%d words)",
+                section_outline.number,
+                section.word_count,
+            )
+        else:
+            logger.warning(
+                "Section %s failed quality gate: %s",
+                section_outline.number,
+                gate.feedback,
+            )
+            # One rewrite attempt
+            section = _rewrite_section(
+                client=client,
+                section=section,
+                feedback=gate.feedback,
+                section_outline=section_outline,
+                model=model,
+            )
             gate = run_quality_gate(section, section_outline)
             if gate.passed:
                 logger.info(
-                    "Section %s passed quality gate (%d words)",
+                    "Section %s passed quality gate on rewrite (%d words)",
                     section_outline.number,
                     section.word_count,
                 )
-                break
-            if retry < 2:
-                logger.warning(
-                    "Section %s failed quality gate (attempt %d): %s",
-                    section_outline.number,
-                    retry + 1,
-                    gate.feedback,
-                )
-                section = _rewrite_section(
-                    client=client,
-                    section=section,
-                    feedback=gate.feedback,
-                    section_outline=section_outline,
-                    model=model,
-                )
             else:
                 logger.warning(
-                    "Section %s still failing after retries, proceeding anyway",
+                    "Section %s still failing after rewrite, proceeding (%d words)",
                     section_outline.number,
+                    section.word_count,
                 )
 
         # Record commitments for subsequent sections
@@ -357,6 +403,7 @@ def _write_single_section(
         temperature=0.4,
     )
 
+    content = _strip_leading_heading(content, section_outline.number, section_outline.title)
     word_count = len(content.split())
 
     return ProposalSection(
@@ -440,6 +487,8 @@ Synthesize the above into a compelling, concise Executive Summary."""
         max_tokens=4096,
         temperature=0.3,
     )
+
+    content = _strip_leading_heading(content, section_outline.number, section_outline.title)
 
     return ProposalSection(
         number=section_outline.number,
@@ -535,6 +584,8 @@ relevant for this RFP. Use [COMPANY: ...] markers for all company-specific data.
         temperature=0.3,
     )
 
+    content = _strip_leading_heading(content, section_outline.number, section_outline.title)
+
     return ProposalSection(
         number=section_outline.number,
         title=section_outline.title,
@@ -580,6 +631,8 @@ and expand where needed."""
         max_tokens=8192,
         temperature=0.3,
     )
+
+    content = _strip_leading_heading(content, section.number, section.title)
 
     return ProposalSection(
         number=section.number,

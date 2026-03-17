@@ -29,7 +29,7 @@ Given the structured RFP analysis, generate a detailed proposal outline. For EAC
    - Major technical sections (3.x): 1000-1500 words
    - Supporting sections (Personnel, Security, QA, etc.): 600-1000 words
    - Past Performance: 800-1200 words
-6. **max_word_count**: Hard upper limit. Set to 1.3x the target_word_count. \
+6. **max_word_count**: Hard upper limit. Set to 1.6x the target_word_count. \
    Sections that exceed this will be flagged for trimming.
 
 CRITICAL RULES for avoiding redundancy:
@@ -113,7 +113,7 @@ def generate_outline(
     # Enforce max_word_count defaults if the model didn't set them
     for section in result.sections:
         if section.max_word_count == 0:
-            section.max_word_count = int(section.target_word_count * 1.3)
+            section.max_word_count = int(section.target_word_count * 1.6)
 
     logger.info(
         "Outline generated: %d sections, total target words: %d",
