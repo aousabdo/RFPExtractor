@@ -55,6 +55,8 @@ def _strip_leading_heading(content: str, section_number: str, section_title: str
                     lines.pop(i)
                 return "\n".join(lines)
         elif (stripped.lower().startswith(f"section {section_number}")
+              or stripped.lower().startswith(f"{section_number}.")
+              or stripped.lower().startswith(f"{section_number}:")
               or stripped.lower().startswith(section_title[:20].lower())):
             lines.pop(i)
             while i < len(lines) and not lines[i].strip():
@@ -62,7 +64,15 @@ def _strip_leading_heading(content: str, section_number: str, section_title: str
             return "\n".join(lines)
         else:
             break  # First non-empty, non-heading line — stop looking
-    return content
+    # Also strip bold section headers like "**Section 3: Title**"
+    if lines:
+        first_line = lines[0].strip()
+        if first_line.startswith("**") and ("section" in first_line.lower()
+                                             or section_number in first_line):
+            lines.pop(0)
+            while lines and not lines[0].strip():
+                lines.pop(0)
+    return "\n".join(lines)
 
 SECTION_SYSTEM_PROMPT = """\
 You are an expert proposal writer for a government/enterprise IT services company. \
@@ -84,10 +94,15 @@ Write a COMPLETE, DETAILED proposal section based on the provided brief. Your ou
 6. **Non-redundant**: If a topic is covered in another section (listed under "Commitments Already Made"), \
    reference it briefly ("as detailed in Section X") rather than re-explaining it. \
    Add NEW information, not repetition.
+7. **Credible**: Do NOT fabricate specific metrics, statistics, or numbers (e.g., "99.9999% uptime", \
+   "86 runbooks", "120% backfill coverage") unless they appear in the Company Identity or Past Performance \
+   data provided. Use general but confident language instead (e.g., "proven track record of high availability" \
+   rather than inventing a precise uptime figure). Every bold claim must be defensible.
 
 Output ONLY the section content in markdown format. Do NOT include the section number or title \
 as a heading (e.g., do NOT start with "## 3.2 Data Management") — headings are added by the system. \
-Start directly with the content.\
+Do NOT start with a line like "Section X: Title" — that is also added by the system. \
+Start directly with the substantive content.\
 """
 
 EXEC_SUMMARY_SYSTEM_PROMPT = """\
@@ -106,6 +121,9 @@ CRITICAL RULES:
 - Keep it to {max_words} words maximum — evaluators skim this section
 - Think of it as the "elevator pitch" — compelling and concise
 - Reference specific section numbers where details can be found
+- Do NOT fabricate specific metrics or statistics. Only cite numbers that appear in the \
+  Company Identity or section summaries provided. Use confident but general language \
+  for claims that cannot be immediately verified.
 
 Output ONLY the section content in markdown format.\
 """
@@ -302,7 +320,7 @@ def write_all_sections(
                 context=context,
             )
 
-        # Quality gate with retry (max 1 rewrite to save cost)
+        # Quality gate with retry (rewrite then condense)
         gate = run_quality_gate(section, section_outline)
         if gate.passed:
             logger.info(
@@ -316,7 +334,7 @@ def write_all_sections(
                 section_outline.number,
                 gate.feedback,
             )
-            # One rewrite attempt
+            # First attempt: rewrite
             section = _rewrite_section(
                 client=client,
                 section=section,
@@ -331,6 +349,32 @@ def write_all_sections(
                     section_outline.number,
                     section.word_count,
                 )
+            elif "too high" in gate.feedback.lower():
+                # Second attempt: dedicated condensation call
+                logger.warning(
+                    "Section %s still over word limit (%d words), running condensation",
+                    section_outline.number,
+                    section.word_count,
+                )
+                section = _condense_section(
+                    client=client,
+                    section=section,
+                    section_outline=section_outline,
+                    model=model,
+                )
+                gate = run_quality_gate(section, section_outline)
+                if gate.passed:
+                    logger.info(
+                        "Section %s passed after condensation (%d words)",
+                        section_outline.number,
+                        section.word_count,
+                    )
+                else:
+                    logger.warning(
+                        "Section %s still over after condensation (%d words), proceeding",
+                        section_outline.number,
+                        section.word_count,
+                    )
             else:
                 logger.warning(
                     "Section %s still failing after rewrite, proceeding (%d words)",
@@ -630,6 +674,60 @@ and expand where needed."""
         model=model,
         max_tokens=8192,
         temperature=0.3,
+    )
+
+    content = _strip_leading_heading(content, section.number, section.title)
+
+    return ProposalSection(
+        number=section.number,
+        title=section.title,
+        content=content,
+        word_count=len(content.split()),
+        requirements_addressed=section.requirements_addressed,
+    )
+
+
+CONDENSE_SYSTEM_PROMPT = """\
+You are a professional proposal editor. Your ONLY job is to shorten the text below to fit \
+within the specified word limit while preserving ALL substantive content.
+
+Rules:
+- KEEP all specific commitments, SLAs, tool names, requirement references, and deliverables.
+- CUT filler phrases ("it is important to note that"), redundant bullet points, and any content \
+  that restates what another section covers (replace with "see Section X").
+- MERGE overlapping bullets into single, tighter statements.
+- CONVERT verbose paragraphs into concise bullet lists where appropriate.
+- Do NOT add new content. Do NOT change the meaning.
+- Do NOT include a section heading — just the body content.
+- You MUST hit the target word count. Count your words before responding.\
+"""
+
+
+def _condense_section(
+    client: OpenAI,
+    section: ProposalSection,
+    section_outline: SectionOutline,
+    model: str,
+) -> ProposalSection:
+    """Condense an over-length section to fit within the word limit.
+
+    This is a dedicated compression call — different from rewrite because
+    the instruction is purely "shorten this" rather than "fix these issues."
+    """
+    target = section_outline.max_word_count or section_outline.target_word_count
+    user_prompt = f"""## Task
+Condense the following section from {section.word_count} words to UNDER {target} words.
+
+## Current Content ({section.word_count} words — must reduce to ≤{target})
+{section.content}"""
+
+    content = chat_completion(
+        client=client,
+        system_prompt=CONDENSE_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        model=model,
+        max_tokens=8192,
+        temperature=0.2,
     )
 
     content = _strip_leading_heading(content, section.number, section.title)
