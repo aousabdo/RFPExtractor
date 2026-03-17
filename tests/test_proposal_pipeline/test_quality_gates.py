@@ -37,23 +37,51 @@ class TestCheckWordCount:
     def test_meets_target(self):
         section = _make_section("word " * 500)
         outline = _make_outline(target_word_count=500)
-        assert check_word_count(section, outline) is True
+        passed, feedback = check_word_count(section, outline)
+        assert passed is True
+        assert feedback == ""
 
     def test_meets_minimum_ratio(self):
         # 300 words vs 500 target, ratio = 0.6 → exactly at threshold
         section = _make_section("word " * 300)
         outline = _make_outline(target_word_count=500)
-        assert check_word_count(section, outline, min_ratio=0.6) is True
+        passed, feedback = check_word_count(section, outline, min_ratio=0.6)
+        assert passed is True
 
     def test_below_minimum(self):
         section = _make_section("word " * 100)
         outline = _make_outline(target_word_count=500)
-        assert check_word_count(section, outline) is False
+        passed, feedback = check_word_count(section, outline)
+        assert passed is False
+        assert "Word count too low" in feedback
 
     def test_exceeds_target(self):
         section = _make_section("word " * 1000)
         outline = _make_outline(target_word_count=500)
-        assert check_word_count(section, outline) is True
+        passed, feedback = check_word_count(section, outline)
+        assert passed is True
+
+    def test_exceeds_max_word_count(self):
+        section = _make_section("word " * 1000)
+        outline = SectionOutline(
+            number="1",
+            title="Test Section",
+            guidance="Test guidance",
+            mapped_requirements=[],
+            target_word_count=500,
+            max_word_count=800,
+        )
+        passed, feedback = check_word_count(section, outline)
+        assert passed is False
+        assert "Word count too high" in feedback
+
+    def test_past_performance_markers_not_flagged(self):
+        """[COMPANY: ...] markers should not be treated as placeholders."""
+        section = _make_section(
+            "word " * 100 + " [COMPANY: ASET Partners] delivered this contract."
+        )
+        found = check_no_placeholders(section)
+        assert len(found) == 0
 
 
 class TestCheckNoPlaceholders:

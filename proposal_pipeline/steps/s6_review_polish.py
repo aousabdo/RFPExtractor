@@ -1,4 +1,4 @@
-"""Step 6: Review and polish — grammar, clarity, tone harmonization in one pass."""
+"""Step 6: Review and polish — grammar, clarity, tone harmonization, redundancy removal."""
 
 from __future__ import annotations
 
@@ -25,12 +25,17 @@ Review and polish the provided proposal section for:
 5. **Consistency**: Match the tone and style of other sections in the proposal.
 6. **Flow**: Ensure logical progression within the section. \
    Each paragraph should connect to the next.
+7. **Redundancy**: If this section repeats content from other sections in the proposal \
+   (listed under "Other Section Topics"), replace the repeated content with a brief \
+   cross-reference like "as detailed in Section X" and use the freed space for \
+   new, section-specific content.
 
 CRITICAL RULES:
-- Do NOT reduce the content length. Maintain or increase word count.
+- Do NOT reduce the content length below 80% of original. Maintain or increase word count.
 - Do NOT remove technical details or specific information.
 - Do NOT add placeholder text or TODO markers.
 - PRESERVE all compliance-related language and requirement references.
+- REMOVE redundant content that duplicates other sections, replacing with cross-references.
 
 Output ONLY the polished section content in markdown format.\
 """
@@ -43,10 +48,10 @@ def review_and_polish(
     context: PipelineContext | None = None,
     progress_callback: Optional[Callable[[str, float], None]] = None,
 ) -> List[ProposalSection]:
-    """Review and polish all proposal sections.
+    """Review and polish all proposal sections with cross-section awareness.
 
-    Combines grammar, clarity, and tone review into a single pass per section.
-    Rejects polished versions that shrink content below 80% of original.
+    Each section gets context about what other sections cover, enabling
+    the editor to remove redundancy and add cross-references.
 
     Args:
         client: OpenAI client.
@@ -60,6 +65,9 @@ def review_and_polish(
     """
     polished: List[ProposalSection] = []
     total = len(sections)
+
+    # Build a topic map of all sections for cross-reference awareness
+    topic_map = _build_topic_map(sections)
 
     for i, section in enumerate(sections):
         if progress_callback:
@@ -78,11 +86,20 @@ def review_and_polish(
                 f"{context.company_style_guide}"
             )
 
+        # Build cross-section context (what other sections cover)
+        other_topics = _get_other_topics(topic_map, section.number)
+
         user_prompt = (
             f"Polish this proposal section:\n\n"
             f"**Section {section.number}: {section.title}**\n\n"
             f"{section.content}"
         )
+
+        if other_topics:
+            user_prompt += (
+                f"\n\n## Other Section Topics (remove redundancy, cross-reference instead)\n"
+                f"{other_topics}"
+            )
 
         polished_content = chat_completion(
             client=client,
@@ -119,3 +136,33 @@ def review_and_polish(
             )
 
     return polished
+
+
+def _build_topic_map(sections: List[ProposalSection]) -> dict[str, str]:
+    """Build a map of section number → key topics covered (first 50 words)."""
+    topic_map = {}
+    for s in sections:
+        # Extract key topics: headings and first sentence of each paragraph
+        lines = s.content.split("\n")
+        topics = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("#") or stripped.startswith("**"):
+                topics.append(stripped.lstrip("#*").strip())
+        # Also add first 50 words as context
+        first_words = " ".join(s.content.split()[:50])
+        topic_map[s.number] = (
+            f"Section {s.number} ({s.title}): "
+            f"Topics: {', '.join(topics[:8])}. "
+            f"Preview: {first_words}..."
+        )
+    return topic_map
+
+
+def _get_other_topics(topic_map: dict[str, str], current_number: str) -> str:
+    """Get topic summaries for all sections except the current one."""
+    other = [
+        desc for num, desc in topic_map.items()
+        if num != current_number
+    ]
+    return "\n".join(other[:15])  # Cap at 15 to manage token count

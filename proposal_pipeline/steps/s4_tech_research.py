@@ -1,4 +1,4 @@
-"""Step 4: Technology research — recommend relevant technologies based on RFP."""
+"""Step 4: Technology research — per-task-area recommendations based on RFP."""
 
 from __future__ import annotations
 
@@ -15,26 +15,14 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """\
 You are a senior solutions architect for a government/enterprise IT services company.
 
-Given the RFP analysis, identify the key technology areas relevant to this project and \
-provide detailed technology recommendations for each area.
+Given a specific task area from an RFP, provide concise technology recommendations:
+- **Recommended technologies** with specific product names (FedRAMP-authorized where applicable)
+- **Architecture patterns** relevant to this task
+- **Compliance considerations** (FedRAMP, FISMA, Section 508, etc.)
+- **Key differentiators** — what would make this approach stand out
 
-For each technology area, provide:
-- **Recommended technologies/frameworks** with specific product names and versions
-- **Why this technology is the best fit** for government/enterprise use
-- **Compliance and security considerations** (FedRAMP, FISMA, Section 508, etc.)
-- **Implementation best practices** and architectural patterns
-- **Alternatives considered** and why the recommended option is preferred
-
-Format your response as a structured analysis with clear headings for each technology area.
-
-Focus on technologies that are:
-- Proven in government/enterprise environments
-- FedRAMP authorized or authorization-ready where applicable
-- Well-supported with strong vendor backing
-- Compliant with accessibility standards (Section 508 / WCAG 2.2)
-
-Be specific and detailed — name exact products, versions, and configurations. \
-Avoid generic recommendations.\
+Be specific: name exact products and services (e.g., "Amazon EKS in GovCloud", not "container orchestration").
+Keep your response focused and under 500 words per task area.\
 """
 
 
@@ -43,10 +31,10 @@ def research_technologies(
     rfp: RFPAnalysis,
     model: str = "gpt-5",
 ) -> Dict[str, str]:
-    """Research and recommend technologies relevant to the RFP.
+    """Research technologies for each major task area in the RFP.
 
-    Uses LLM knowledge to provide technology recommendations.
-    Returns a dict mapping technology areas to detailed findings.
+    Makes one API call per task area (up to 8) for focused, relevant results.
+    Falls back to a single combined call if there are fewer than 2 tasks.
 
     Args:
         client: OpenAI client instance.
@@ -58,26 +46,68 @@ def research_technologies(
     """
     logger.info("Step 4: Researching technologies for %d tasks", len(rfp.tasks))
 
-    tasks_text = "\n".join(f"- {t.title}: {t.description}" for t in rfp.tasks)
+    # Gather requirement context
     it_reqs = [r for r in rfp.requirements if r.category == "IT Standards"]
     security_reqs = [r for r in rfp.requirements if r.category == "Security"]
-
     it_text = "\n".join(f"- {r.description}" for r in it_reqs) or "None specified"
     sec_text = "\n".join(f"- {r.description}" for r in security_reqs) or "None specified"
 
-    user_prompt = f"""Research and recommend technologies for this RFP:
-
-**Customer:** {rfp.customer}
+    context_block = f"""**Customer:** {rfp.customer}
 **Scope:** {rfp.scope}
-
-**Major Tasks:**
-{tasks_text}
 
 **IT Standards Requirements:**
 {it_text}
 
 **Security Requirements:**
-{sec_text}
+{sec_text}"""
+
+    tech_research: Dict[str, str] = {}
+
+    if len(rfp.tasks) < 2:
+        # Fallback: single combined research call
+        tech_research = _research_combined(client, rfp, context_block, model)
+    else:
+        # Research each task area individually (cap at 8 to manage cost)
+        tasks_to_research = rfp.tasks[:8]
+        for task in tasks_to_research:
+            logger.info("Researching tech for: %s", task.title)
+            user_prompt = f"""Recommend technologies for this task area:
+
+**Task:** {task.title}
+**Description:** {task.description}
+
+{context_block}
+
+Provide specific, actionable technology recommendations for this task area."""
+
+            response = chat_completion(
+                client=client,
+                system_prompt=SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                model=model,
+                max_tokens=2048,
+            )
+            tech_research[task.title] = response
+
+    logger.info("Tech research complete: %d areas covered", len(tech_research))
+    return tech_research
+
+
+def _research_combined(
+    client: OpenAI,
+    rfp: RFPAnalysis,
+    context_block: str,
+    model: str,
+) -> Dict[str, str]:
+    """Fallback: single combined technology research call."""
+    tasks_text = "\n".join(f"- {t.title}: {t.description}" for t in rfp.tasks)
+
+    user_prompt = f"""Research and recommend technologies for this RFP:
+
+{context_block}
+
+**Major Tasks:**
+{tasks_text}
 
 Provide detailed technology recommendations organized by technology area."""
 
@@ -90,10 +120,7 @@ Provide detailed technology recommendations organized by technology area."""
     )
 
     # Parse the response into sections by heading
-    tech_research = _parse_tech_sections(response)
-
-    logger.info("Tech research complete: %d areas covered", len(tech_research))
-    return tech_research
+    return _parse_tech_sections(response)
 
 
 def _parse_tech_sections(response: str) -> Dict[str, str]:

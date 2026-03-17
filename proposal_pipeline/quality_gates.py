@@ -19,22 +19,50 @@ PLACEHOLDER_PATTERNS = [
     r"XX+",
 ]
 
+# Past performance template markers are OK — don't flag them
+PAST_PERF_PATTERN = r"\[COMPANY:.*?\]"
+
 
 def check_word_count(
     section: ProposalSection, outline: SectionOutline, min_ratio: float = 0.6
-) -> bool:
-    """Check that section meets minimum word count (target * min_ratio)."""
+) -> Tuple[bool, str]:
+    """Check that section meets minimum word count and doesn't exceed max.
+
+    Returns (passed, feedback_message).
+    """
     actual = len(section.content.split())
     minimum = int(outline.target_word_count * min_ratio)
-    return actual >= minimum
+
+    if actual < minimum:
+        return False, (
+            f"Word count too low: {actual} words vs target {outline.target_word_count} "
+            f"(minimum {minimum}). Expand with more specific detail."
+        )
+
+    if outline.max_word_count > 0 and actual > outline.max_word_count:
+        return False, (
+            f"Word count too high: {actual} words vs maximum {outline.max_word_count}. "
+            f"Tighten the content: remove redundancy, consolidate bullet points, "
+            f"and cross-reference other sections instead of restating content."
+        )
+
+    return True, ""
 
 
 def check_no_placeholders(section: ProposalSection) -> List[str]:
-    """Return list of placeholder strings found in the section content."""
+    """Return list of placeholder strings found in the section content.
+
+    Excludes [COMPANY: ...] markers which are intentional templates
+    for Past Performance sections.
+    """
     found = []
     for pattern in PLACEHOLDER_PATTERNS:
         matches = re.findall(pattern, section.content, re.IGNORECASE)
         found.extend(matches)
+
+    # Filter out [COMPANY: ...] markers (these are intentional)
+    found = [m for m in found if not re.match(PAST_PERF_PATTERN, m, re.IGNORECASE)]
+
     return found
 
 
@@ -72,7 +100,7 @@ def run_quality_gate(
     section: ProposalSection, outline: SectionOutline
 ) -> QualityGateResult:
     """Run all quality checks on a section and return a combined result."""
-    wc_ok = check_word_count(section, outline)
+    wc_ok, wc_feedback = check_word_count(section, outline)
     placeholders = check_no_placeholders(section)
     no_placeholders = len(placeholders) == 0
     req_ok, coverage = check_requirements_coverage(
@@ -81,12 +109,7 @@ def run_quality_gate(
 
     feedback_parts = []
     if not wc_ok:
-        actual = len(section.content.split())
-        feedback_parts.append(
-            f"Word count too low: {actual} words vs target {outline.target_word_count}. "
-            f"Expand with more specific detail, concrete examples, methodology "
-            f"descriptions, and implementation specifics."
-        )
+        feedback_parts.append(wc_feedback)
     if not no_placeholders:
         feedback_parts.append(
             f"Placeholder text found: {placeholders}. "

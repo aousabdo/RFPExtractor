@@ -23,11 +23,26 @@ Given the structured RFP analysis, generate a detailed proposal outline. For EAC
 4. **mapped_requirements**: List the specific RFP requirement descriptions that this section \
    MUST address. Copy the exact requirement text from the analysis.
 5. **target_word_count**: Target word count proportional to section importance. \
-   Executive Summary: 400-600 words. Major technical sections: 800-1500 words. \
-   Supporting sections: 400-800 words.
+   Use these ranges as BOTH the target AND maximum:
+   - Executive Summary: 600-800 words (concise, high-level, NO deep technical detail)
+   - Understanding of Requirements: 800-1200 words
+   - Major technical sections (3.x): 1000-1500 words
+   - Supporting sections (Personnel, Security, QA, etc.): 600-1000 words
+   - Past Performance: 800-1200 words
+6. **max_word_count**: Hard upper limit. Set to 1.3x the target_word_count. \
+   Sections that exceed this will be flagged for trimming.
+
+CRITICAL RULES for avoiding redundancy:
+- Each section must have a DISTINCT scope. Do NOT let multiple sections cover the same topic.
+- The Executive Summary should ONLY summarize — it must NOT contain detailed technical approach, \
+  SLA numbers, tool lists, or architecture details. Those belong in their respective sections.
+- If a topic (e.g., "project management") has its own section, other sections should \
+  cross-reference it ("See Section X") rather than re-explaining it.
+- The guidance field should explicitly state what this section should NOT cover \
+  (because it's covered elsewhere).
 
 Required sections (at minimum):
-- Executive Summary
+- Executive Summary (written LAST — the pipeline will handle ordering)
 - Understanding of Requirements / Problem Statement
 - Technical Approach (with sub-sections per major task area)
 - Personnel / Staffing Plan
@@ -94,6 +109,11 @@ def generate_outline(
         response_model=ProposalOutline,
         model=model,
     )
+
+    # Enforce max_word_count defaults if the model didn't set them
+    for section in result.sections:
+        if section.max_word_count == 0:
+            section.max_word_count = int(section.target_word_count * 1.3)
 
     logger.info(
         "Outline generated: %d sections, total target words: %d",

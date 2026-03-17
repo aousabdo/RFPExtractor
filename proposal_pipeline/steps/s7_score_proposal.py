@@ -19,17 +19,31 @@ from ..openai_helpers import chat_completion, structured_output
 logger = logging.getLogger(__name__)
 
 SCORING_SYSTEM_PROMPT = """\
-You are a proposal evaluation expert who scores government/enterprise proposals \
-against RFP requirements and industry best practices.
+You are a harsh, experienced government source selection evaluator who has read \
+hundreds of proposals. You score TOUGH — a 90+ means the section is genuinely \
+exceptional and ready to submit with zero changes. Most AI-generated proposals \
+score 65-80 in your experience.
 
 Score the provided proposal section on a 0-100 scale across these criteria:
-- **Compliance** (25%): Does it address all mapped RFP requirements?
-- **Completeness** (25%): Is the content thorough with specific details?
-- **Clarity** (25%): Is it well-written, well-organized, and easy to follow?
-- **Competitiveness** (25%): Does it present a compelling, differentiated solution?
+- **Compliance** (25%): Does it address ALL mapped RFP requirements with specificity? \
+  Vague compliance claims score low. Must show HOW, not just assert compliance.
+- **Completeness** (25%): Is the content thorough with specific tools, timelines, \
+  metrics, and deliverables? Generic "best practices" language scores low.
+- **Clarity** (25%): Is it well-organized and concise? Verbose repetition scores low. \
+  Does each paragraph add new value?
+- **Competitiveness** (25%): Does it differentiate from competitors? Would this win \
+  against 4-5 other proposals? Generic government boilerplate scores low.
+
+SCORING CALIBRATION:
+- 90-100: Exceptional. Ready to submit. Specific, compelling, zero filler.
+- 80-89: Very good. Minor improvements needed. Mostly specific and compelling.
+- 70-79: Acceptable. Meets requirements but lacks specificity or differentiation.
+- 60-69: Marginal. Significant gaps, vague language, or excessive boilerplate.
+- Below 60: Unacceptable. Major rewrites needed.
 
 Set requires_rewrite to true if score < 70.
-Be specific in strengths, weaknesses, and recommendations — no generic feedback.\
+Be brutally specific in weaknesses — quote the actual text that's weak. \
+No generic feedback like "could be more detailed" — say exactly WHAT needs detail.\
 """
 
 REWRITE_SYSTEM_PROMPT = """\
