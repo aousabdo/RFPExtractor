@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 from .export import create_output_dir, save_intermediate, to_json, to_markdown, to_docx
-from .models import PipelineContext, ProposalPackage
+from .models import CompanyProfile, PastPerformanceEntry, PipelineContext, ProposalPackage
 from .openai_helpers import get_client, reset_usage_tracker, get_usage_tracker
 from .steps.s1_analyze_rfp import analyze_rfp, rfp_analysis_from_existing
 from .steps.s2_generate_outline import generate_outline
@@ -23,6 +23,49 @@ from .steps.s6_review_polish import review_and_polish
 from .steps.s7_score_proposal import score_and_rewrite
 
 logger = logging.getLogger(__name__)
+
+# Default location for company-specific data files
+_COMPANY_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "company_data")
+
+
+def load_company_data(company_data_dir: str = _COMPANY_DATA_DIR) -> PipelineContext:
+    """Load company data files from disk and return a populated PipelineContext.
+
+    Looks for these files in the given directory:
+      - company_profile.json  → CompanyProfile
+      - past_performance.json → List[PastPerformanceEntry]
+      - win_themes.json       → List[str]
+      - style_guide.txt       → str
+
+    Missing files are silently skipped — each field stays at its default.
+    """
+    ctx = PipelineContext()
+
+    profile_path = os.path.join(company_data_dir, "company_profile.json")
+    if os.path.isfile(profile_path):
+        with open(profile_path) as f:
+            ctx.company_profile = CompanyProfile(**json.load(f))
+        logger.info("Loaded company profile from %s", profile_path)
+
+    pp_path = os.path.join(company_data_dir, "past_performance.json")
+    if os.path.isfile(pp_path):
+        with open(pp_path) as f:
+            ctx.past_performance = [PastPerformanceEntry(**e) for e in json.load(f)]
+        logger.info("Loaded %d past performance entries from %s", len(ctx.past_performance), pp_path)
+
+    themes_path = os.path.join(company_data_dir, "win_themes.json")
+    if os.path.isfile(themes_path):
+        with open(themes_path) as f:
+            ctx.win_themes = json.load(f)
+        logger.info("Loaded %d win themes from %s", len(ctx.win_themes), themes_path)
+
+    guide_path = os.path.join(company_data_dir, "style_guide.txt")
+    if os.path.isfile(guide_path):
+        with open(guide_path) as f:
+            ctx.company_style_guide = f.read()
+        logger.info("Loaded style guide from %s", guide_path)
+
+    return ctx
 
 
 class ProposalPipeline:
@@ -53,8 +96,16 @@ class ProposalPipeline:
         self.client = get_client(api_key)
         self.model = model
         self.progress_callback = progress_callback or (lambda msg, pct: None)
-        self.context = context
         self._output_dir = output_dir  # Set later if not provided
+
+        # Auto-load company data from company_data/ if no context provided
+        if context is not None:
+            self.context = context
+        elif os.path.isdir(_COMPANY_DATA_DIR):
+            logger.info("Auto-loading company data from %s", _COMPANY_DATA_DIR)
+            self.context = load_company_data()
+        else:
+            self.context = None
 
     @property
     def output_dir(self) -> str | None:

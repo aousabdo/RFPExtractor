@@ -80,6 +80,9 @@ proposals/
 # Archive of old code (kept locally, not on GitHub)
 _archive/
 
+# Company-specific data (sensitive contract info, past performance, etc.)
+company_data/
+
 # Generated output files
 *.docx
 *.zip
