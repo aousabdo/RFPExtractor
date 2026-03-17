@@ -41,8 +41,10 @@ def _is_reasoning_model(model: str) -> bool:
 # Pricing per 1M tokens (USD) — update as OpenAI changes pricing
 # Source: https://openai.com/api/pricing/
 MODEL_PRICING: dict[str, dict[str, float]] = {
-    # GPT-5
-    "gpt-5": {"input": 10.00, "output": 30.00},
+    # GPT-5 family
+    "gpt-5": {"input": 1.25, "output": 10.00},
+    "gpt-5.3": {"input": 1.75, "output": 14.00},
+    "gpt-5.4": {"input": 2.50, "output": 15.00},
     # GPT-4o family
     "gpt-4o": {"input": 2.50, "output": 10.00},
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},

@@ -33,7 +33,12 @@ def main() -> None:
         description="Generate a proposal from an RFP/SOW document."
     )
     parser.add_argument("rfp_files", nargs="+", help="One or more RFP/SOW PDF or text files")
-    parser.add_argument("--model", default="gpt-5", help="OpenAI model (default: gpt-5)")
+    parser.add_argument("--model", default="gpt-5", help="Base model for analysis/scoring (default: gpt-5)")
+    parser.add_argument(
+        "--writing-model", default=None,
+        help="Model for writing/polishing/compressing (default: same as --model). "
+             "Use gpt-5.4 for highest quality writing."
+    )
     parser.add_argument("--output-dir", default=None, help="Custom output directory")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
     args = parser.parse_args()
@@ -54,9 +59,15 @@ def main() -> None:
 
     pipeline = ProposalPipeline(
         model=args.model,
+        writing_model=args.writing_model,
         progress_callback=_progress,
         output_dir=args.output_dir,
     )
+
+    if args.writing_model and args.writing_model != args.model:
+        print(f"🧠 Analysis/scoring: {args.model}")
+        print(f"✍️  Writing/polish/compress: {args.writing_model}")
+        print()
 
     start = time.time()
     result = pipeline.run(rfp_text=rfp_text, source_files=args.rfp_files)
@@ -66,7 +77,20 @@ def main() -> None:
     print(f"\n✅ Done in {minutes}m {seconds}s")
     print(f"   Output: {pipeline.output_dir}")
     print(f"   Sections: {len(result.sections)}")
-    print(f"   Score: {result.overall_score}/100")
+    print(f"   Score: {result.overall_score:.1f}/100")
+
+    # Show word counts for both versions
+    final_words = result.generation_metadata.get("total_words", 0)
+    full_words = result.generation_metadata.get("full_version_words", 0)
+    page_limit = result.generation_metadata.get("page_limit", 0)
+    if full_words and full_words != final_words:
+        print(f"   Full version: {full_words:,} words (proposal_full.docx)")
+        print(f"   Compressed:   {final_words:,} words (proposal.docx)")
+        if page_limit:
+            est_pages = final_words / 500
+            print(f"   Page limit:   {page_limit} pages (~{est_pages:.0f} estimated)")
+    else:
+        print(f"   Words: {final_words:,}")
 
     # Print cost if tracked
     from .openai_helpers import get_usage_tracker

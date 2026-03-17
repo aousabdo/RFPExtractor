@@ -20,6 +20,7 @@ from .steps.s3_compliance_matrix import build_compliance_matrix
 from .steps.s4_tech_research import research_technologies
 from .steps.s5_write_sections import write_all_sections
 from .steps.s6_review_polish import review_and_polish
+from .steps.s6b_compress import compress_to_page_limit
 from .steps.s7_score_proposal import score_and_rewrite
 
 logger = logging.getLogger(__name__)
@@ -89,14 +90,23 @@ class ProposalPipeline:
         self,
         api_key: Optional[str] = None,
         model: str = "gpt-5",
+        writing_model: str | None = None,
         progress_callback: Optional[Callable[[str, float], None]] = None,
         context: PipelineContext | None = None,
         output_dir: str | None = None,
     ):
         self.client = get_client(api_key)
-        self.model = model
+        self.model = model  # Used for analysis, outline, compliance, tech research, scoring
+        self.writing_model = writing_model or model  # Used for writing, polishing, compressing
         self.progress_callback = progress_callback or (lambda msg, pct: None)
         self._output_dir = output_dir  # Set later if not provided
+
+        if self.writing_model != self.model:
+            logger.info(
+                "Using split model strategy: %s for analysis/scoring, %s for writing/polish/compress",
+                self.model,
+                self.writing_model,
+            )
 
         # Auto-load company data from company_data/ if no context provided
         if context is not None:
@@ -190,34 +200,56 @@ class ProposalPipeline:
         )
         save_intermediate(tech_research, "step4_tech_research.json", self._output_dir)
 
-        # ── Step 5: Write Sections (bulk of the work) ──
+        # ── Step 5: Write Sections (bulk of the work — uses writing_model) ──
         sections = write_all_sections(
             client=self.client,
             rfp=rfp,
             outline=outline,
             compliance=compliance,
             tech_research=tech_research,
-            model=self.model,
+            model=self.writing_model,
             context=self.context,
             progress_callback=self.progress_callback,
         )
-        self.progress_callback("All sections drafted", 0.85)
+        self.progress_callback("All sections drafted", 0.82)
         save_intermediate(sections, "step5_sections_draft.json", self._output_dir)
 
-        # ── Step 6: Review and Polish ──
-        self.progress_callback("Reviewing and polishing...", 0.87)
+        # ── Step 6: Review and Polish (uses writing_model) ──
+        self.progress_callback("Reviewing and polishing...", 0.83)
         sections = review_and_polish(
             client=self.client,
             sections=sections,
-            model=self.model,
+            model=self.writing_model,
             context=self.context,
             progress_callback=self.progress_callback,
         )
-        self.progress_callback("Review complete", 0.92)
+        self.progress_callback("Review complete", 0.88)
         save_intermediate(sections, "step6_sections_polished.json", self._output_dir)
 
-        # ── Step 7: Score and Rewrite Loop ──
-        self.progress_callback("Scoring proposal...", 0.93)
+        # ── Save FULL version (always, before compression) ──
+        full_words = sum(s.word_count for s in sections)
+        self.progress_callback(
+            f"Saving full version ({full_words:,} words)...", 0.89
+        )
+        full_package = ProposalPackage(
+            rfp_analysis=rfp,
+            outline=outline,
+            compliance_matrix=compliance,
+            sections=sections,
+            scores=[],
+            overall_score=0.0,
+            generation_metadata={"model": self.model, "writing_model": self.writing_model},
+        )
+        md_full = os.path.join(self._output_dir, "proposal_full.md")
+        with open(md_full, "w") as f:
+            f.write(to_markdown(full_package))
+        logger.info("Saved full proposal (%d words) to %s", full_words, md_full)
+
+        docx_full = os.path.join(self._output_dir, "proposal_full.docx")
+        to_docx(full_package, docx_full)
+
+        # ── Step 7: Score and Rewrite Loop (uses base model) ──
+        self.progress_callback("Scoring proposal...", 0.90)
         sections, scores, overall_score = score_and_rewrite(
             client=self.client,
             sections=sections,
@@ -226,9 +258,38 @@ class ProposalPipeline:
             model=self.model,
         )
         self.progress_callback(
-            f"Scoring complete: {overall_score:.0f}/100", 0.98
+            f"Scoring complete: {overall_score:.0f}/100", 0.92
         )
         save_intermediate(scores, "step7_scores.json", self._output_dir)
+
+        # ── Step 6b: Compress to page limit (if applicable, uses writing_model) ──
+        if rfp.page_limit > 0:
+            total_word_budget = rfp.page_limit * 500
+            current_words = sum(s.word_count for s in sections)
+            if current_words > total_word_budget:
+                self.progress_callback(
+                    f"Compressing to {rfp.page_limit}-page limit "
+                    f"({current_words:,} → {total_word_budget:,} words)...",
+                    0.93,
+                )
+                sections = compress_to_page_limit(
+                    client=self.client,
+                    sections=sections,
+                    scores=scores,
+                    total_word_budget=total_word_budget,
+                    model=self.writing_model,
+                    progress_callback=self.progress_callback,
+                )
+                save_intermediate(
+                    sections, "step6b_sections_compressed.json", self._output_dir
+                )
+                self.progress_callback("Compression complete", 0.97)
+            else:
+                logger.info(
+                    "Proposal within page limit (%d words ≤ %d budget), skipping compression",
+                    current_words,
+                    total_word_budget,
+                )
 
         # ── Assemble Package ──
         elapsed = time.time() - start_time
@@ -238,8 +299,11 @@ class ProposalPipeline:
         ]
         metadata = {
             "model": self.model,
+            "writing_model": self.writing_model,
             "total_sections": len(sections),
             "total_words": sum(s.word_count for s in sections),
+            "full_version_words": full_words,
+            "page_limit": rfp.page_limit,
             "elapsed_seconds": round(elapsed, 1),
             "output_dir": self._output_dir,
             "timestamp": run_timestamp,
@@ -258,7 +322,7 @@ class ProposalPipeline:
             generation_metadata=metadata,
         )
 
-        # ── Save final outputs ──
+        # ── Save final (compressed if applicable) outputs ──
         md_path = os.path.join(self._output_dir, "proposal.md")
         with open(md_path, "w") as f:
             f.write(to_markdown(package))

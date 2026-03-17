@@ -1,9 +1,11 @@
-"""Step 5: Write proposal sections — one at a time with quality gates and retry.
+"""Step 5: Write proposal sections — one call per section, no retries.
 
-Key improvements:
+Key design:
 - Commitment tracker prevents redundancy across sections
 - Executive Summary is written LAST and synthesizes the full proposal
 - Past Performance uses real data when provided, templates when not
+- NO quality gate retries during writing — the model writes freely.
+  Compression to page limits happens in a separate post-scoring step (s6b).
 """
 
 from __future__ import annotations
@@ -23,7 +25,6 @@ from ..models import (
     SectionOutline,
 )
 from ..openai_helpers import chat_completion
-from ..quality_gates import run_quality_gate
 
 logger = logging.getLogger(__name__)
 
@@ -173,23 +174,6 @@ Output ONLY the section content in markdown format. Use the real data exactly as
 do NOT fabricate or embellish details.\
 """
 
-REWRITE_SYSTEM_PROMPT = """\
-You are an expert proposal writer. The previous draft of this section did not pass quality checks. \
-Rewrite the section to address the specific feedback below.
-
-You must:
-- Fix ALL issues identified in the feedback
-- If the feedback says word count is too HIGH: aggressively cut filler, merge overlapping bullets, \
-  replace verbose explanations with concise statements, and remove content that belongs in other sections. \
-  The MAXIMUM word count is a HARD ceiling — exceeding it is a failure.
-- If the feedback says word count is too LOW: expand with more specific detail
-- Keep all content that was already good
-- Use no placeholder text whatsoever
-
-Output ONLY the revised section content in markdown format. Do NOT include a section heading.\
-"""
-
-
 class CommitmentTracker:
     """Tracks key commitments made across sections to prevent redundancy.
 
@@ -320,67 +304,12 @@ def write_all_sections(
                 context=context,
             )
 
-        # Quality gate with retry (rewrite then condense)
-        gate = run_quality_gate(section, section_outline)
-        if gate.passed:
-            logger.info(
-                "Section %s passed quality gate (%d words)",
-                section_outline.number,
-                section.word_count,
-            )
-        else:
-            logger.warning(
-                "Section %s failed quality gate: %s",
-                section_outline.number,
-                gate.feedback,
-            )
-            # First attempt: rewrite
-            section = _rewrite_section(
-                client=client,
-                section=section,
-                feedback=gate.feedback,
-                section_outline=section_outline,
-                model=model,
-            )
-            gate = run_quality_gate(section, section_outline)
-            if gate.passed:
-                logger.info(
-                    "Section %s passed quality gate on rewrite (%d words)",
-                    section_outline.number,
-                    section.word_count,
-                )
-            elif "too high" in gate.feedback.lower():
-                # Second attempt: dedicated condensation call
-                logger.warning(
-                    "Section %s still over word limit (%d words), running condensation",
-                    section_outline.number,
-                    section.word_count,
-                )
-                section = _condense_section(
-                    client=client,
-                    section=section,
-                    section_outline=section_outline,
-                    model=model,
-                )
-                gate = run_quality_gate(section, section_outline)
-                if gate.passed:
-                    logger.info(
-                        "Section %s passed after condensation (%d words)",
-                        section_outline.number,
-                        section.word_count,
-                    )
-                else:
-                    logger.warning(
-                        "Section %s still over after condensation (%d words), proceeding",
-                        section_outline.number,
-                        section.word_count,
-                    )
-            else:
-                logger.warning(
-                    "Section %s still failing after rewrite, proceeding (%d words)",
-                    section_outline.number,
-                    section.word_count,
-                )
+        logger.info(
+            "Section %s written: %d words (target: %d)",
+            section_outline.number,
+            section.word_count,
+            section_outline.target_word_count,
+        )
 
         # Record commitments for subsequent sections
         tracker.record(section.number, section.title, section.content)
@@ -639,105 +568,6 @@ relevant for this RFP. Use [COMPANY: ...] markers for all company-specific data.
             r.requirement_description
             for r in _get_relevant_compliance(compliance, section_outline)
         ],
-    )
-
-
-def _rewrite_section(
-    client: OpenAI,
-    section: ProposalSection,
-    feedback: str,
-    section_outline: SectionOutline,
-    model: str,
-) -> ProposalSection:
-    """Rewrite a section that failed quality gates."""
-    user_prompt = f"""## Section to Rewrite
-**{section_outline.number}. {section_outline.title}**
-Target word count: {section_outline.target_word_count}
-Maximum word count: {section_outline.max_word_count}
-
-## Current Draft
-{section.content}
-
-## Quality Gate Feedback (MUST FIX)
-{feedback}
-
-## Section Guidance
-{section_outline.guidance}
-
-Rewrite the section to fix ALL issues above. Maintain all good content \
-and expand where needed."""
-
-    content = chat_completion(
-        client=client,
-        system_prompt=REWRITE_SYSTEM_PROMPT,
-        user_prompt=user_prompt,
-        model=model,
-        max_tokens=8192,
-        temperature=0.3,
-    )
-
-    content = _strip_leading_heading(content, section.number, section.title)
-
-    return ProposalSection(
-        number=section.number,
-        title=section.title,
-        content=content,
-        word_count=len(content.split()),
-        requirements_addressed=section.requirements_addressed,
-    )
-
-
-CONDENSE_SYSTEM_PROMPT = """\
-You are a professional proposal editor. Your ONLY job is to shorten the text below to fit \
-within the specified word limit while preserving ALL substantive content.
-
-Rules:
-- KEEP all specific commitments, SLAs, tool names, requirement references, and deliverables.
-- CUT filler phrases ("it is important to note that"), redundant bullet points, and any content \
-  that restates what another section covers (replace with "see Section X").
-- MERGE overlapping bullets into single, tighter statements.
-- CONVERT verbose paragraphs into concise bullet lists where appropriate.
-- Do NOT add new content. Do NOT change the meaning.
-- Do NOT include a section heading — just the body content.
-- You MUST hit the target word count. Count your words before responding.\
-"""
-
-
-def _condense_section(
-    client: OpenAI,
-    section: ProposalSection,
-    section_outline: SectionOutline,
-    model: str,
-) -> ProposalSection:
-    """Condense an over-length section to fit within the word limit.
-
-    This is a dedicated compression call — different from rewrite because
-    the instruction is purely "shorten this" rather than "fix these issues."
-    """
-    target = section_outline.max_word_count or section_outline.target_word_count
-    user_prompt = f"""## Task
-Condense the following section from {section.word_count} words to UNDER {target} words.
-
-## Current Content ({section.word_count} words — must reduce to ≤{target})
-{section.content}"""
-
-    content = chat_completion(
-        client=client,
-        system_prompt=CONDENSE_SYSTEM_PROMPT,
-        user_prompt=user_prompt,
-        model=model,
-        max_tokens=8192,
-        temperature=0.2,
-    )
-
-    content = _strip_leading_heading(content, section.number, section.title)
-
-    return ProposalSection(
-        number=section.number,
-        title=section.title,
-        content=content,
-        word_count=len(content.split()),
-        requirements_addressed=section.requirements_addressed,
     )
 
 
