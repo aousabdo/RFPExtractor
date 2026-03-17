@@ -25,6 +25,14 @@ Analyze the provided RFP text and extract:
 4. **requirements**: Rules, standards, and constraints the contractor must follow. \
    Categorize each as one of: Security, Compliance, IT Standards, Personnel.
 5. **dates**: Key dates mentioned (submission deadlines, performance periods, milestones).
+6. **page_limit**: The maximum number of pages allowed for the technical/management proposal volume. \
+   Look for phrases like "limited to X pages", "shall not exceed X pages", "page limitation", \
+   "maximum of X pages". Set to 0 if no page limit is found.
+7. **page_limit_notes**: What the page limit includes/excludes (e.g., "excluding cover letter, \
+   table of contents, and resumes"). Copy the exact RFP language.
+8. **transition_days**: Number of days after award by which the contractor must assume full \
+   operational responsibility. Look for phrases like "within X days of award", "assume responsibilities \
+   within X days", "transition period of X days". Set to 0 if not specified.
 
 Be thorough — capture ALL tasks, requirements, and dates. \
 Consolidate duplicates but do not omit anything.\

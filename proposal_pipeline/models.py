@@ -34,6 +34,9 @@ class RFPAnalysis(BaseModel):
     tasks: List[TaskItem] = Field(default_factory=list)
     requirements: List[Requirement] = Field(default_factory=list)
     dates: List[DateItem] = Field(default_factory=list)
+    page_limit: int = 0  # 0 = no limit detected; otherwise max pages for tech volume
+    page_limit_notes: str = ""  # What the limit includes/excludes (e.g. "excluding TOC, resumes")
+    transition_days: int = 0  # 0 = not specified; otherwise days to assume full operations
 
 
 # ── Proposal Outline Models ──

@@ -101,15 +101,6 @@ def to_markdown(package: ProposalPackage) -> str:
     # Title
     parts.append(f"# Proposal for {package.rfp_analysis.customer}")
     parts.append("")
-
-    # Metadata
-    meta = package.generation_metadata
-    parts.append(
-        f"*Generated using {meta.get('model', 'unknown')} | "
-        f"{meta.get('total_words', 0):,} words | "
-        f"Score: {package.overall_score:.0f}/100*"
-    )
-    parts.append("")
     parts.append("---")
     parts.append("")
 
@@ -207,18 +198,6 @@ def to_docx(package: ProposalPackage, output_path: str) -> str:
     run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
     doc.add_paragraph("")
-
-    meta_text = (
-        f"Total Words: {package.generation_metadata.get('total_words', 0):,}\n"
-        f"Overall Score: {package.overall_score:.0f}/100\n"
-        f"Sections: {len(package.sections)}"
-    )
-    meta_para = doc.add_paragraph()
-    meta_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = meta_para.add_run(meta_text)
-    run.font.size = Pt(10)
-    run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
-
     doc.add_page_break()
 
     # ── Table of Contents placeholder ──

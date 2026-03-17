@@ -98,6 +98,29 @@ def generate_outline(
 **Key Dates:**
 {dates_text}"""
 
+    # Page limit awareness — critical for right-sizing word counts
+    if rfp.page_limit > 0:
+        # ~500 words per page in standard proposal formatting (12pt, single-space, 1" margins)
+        total_word_budget = rfp.page_limit * 500
+        user_prompt += f"""
+
+**CRITICAL PAGE LIMIT: {rfp.page_limit} pages ({rfp.page_limit_notes})**
+Total word budget: ~{total_word_budget} words across ALL sections.
+You MUST size your target_word_counts so they sum to NO MORE THAN {total_word_budget} words total.
+This is a hard RFQ constraint — exceeding it means automatic disqualification.
+Prioritize depth on Technical Approach and Management; keep supporting sections tight."""
+
+    # Transition timing awareness
+    if rfp.transition_days > 0:
+        user_prompt += f"""
+
+**TRANSITION REQUIREMENT: Contractor must assume full operational responsibility within \
+{rfp.transition_days} days of award.**
+The Transition / Implementation section guidance MUST explicitly address this {rfp.transition_days}-day \
+requirement with a clear statement that Day-{rfp.transition_days} readiness is guaranteed. \
+Any longer optimization period should be framed as ADDITIONAL maturation beyond the \
+{rfp.transition_days}-day operational assumption."""
+
     if context and context.win_themes:
         themes = "\n".join(f"- {t}" for t in context.win_themes)
         user_prompt += f"\n\n**Win Themes to weave throughout:**\n{themes}"
@@ -114,6 +137,20 @@ def generate_outline(
     for section in result.sections:
         if section.max_word_count == 0:
             section.max_word_count = int(section.target_word_count * 1.6)
+
+    # If page limit exists, enforce total word budget with proportional scaling
+    if rfp.page_limit > 0:
+        total_word_budget = rfp.page_limit * 500
+        current_total = sum(s.target_word_count for s in result.sections)
+        if current_total > total_word_budget:
+            scale = total_word_budget / current_total
+            logger.warning(
+                "Outline total words %d exceeds page budget %d — scaling down by %.0f%%",
+                current_total, total_word_budget, (1 - scale) * 100,
+            )
+            for section in result.sections:
+                section.target_word_count = max(200, int(section.target_word_count * scale))
+                section.max_word_count = int(section.target_word_count * 1.6)
 
     logger.info(
         "Outline generated: %d sections, total target words: %d",
